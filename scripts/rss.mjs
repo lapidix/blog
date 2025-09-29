@@ -3,31 +3,35 @@ import GithubSlugger from 'github-slugger'
 import path from 'path'
 import { sortPosts } from 'pliny/utils/contentlayer.js'
 import { escape } from 'pliny/utils/htmlEscaper.js'
-import { allBlogs } from '../.contentlayer/generated/index.mjs'
-// JSON import를 동적으로 처리
+import { allBlogs, allReflections } from '../.contentlayer/generated/index.mjs'
+
 import { readFileSync } from 'fs'
-import { dirname, join } from 'path'
+import { join } from 'path'
 import { fileURLToPath } from 'url'
 import siteMetadata from '../data/siteMetadata.js'
 
 const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
 const tagData = JSON.parse(readFileSync(join(__dirname, '../app/tag-data.json'), 'utf8'))
 
-const generateRssItem = (config, post) => `
+const generateRssItem = (config, post) => {
+  const isReflection = post.type === 'Reflection'
+  const urlPath = isReflection ? 'reflections' : 'posts'
+
+  return `
   <item>
-    <guid>${config.siteUrl}/posts/${post.slug}</guid>
+    <guid>${config.siteUrl}/${urlPath}/${post.slug}</guid>
     <title>${escape(post.title)}</title>
-    <link>${config.siteUrl}/posts/${post.slug}</link>
+    <link>${config.siteUrl}/${urlPath}/${post.slug}</link>
     ${post.summary && `<description>${escape(post.summary)}</description>`}
     <pubDate>${new Date(post.date).toUTCString()}</pubDate>
     <author>${config.email} (${config.author})</author>
     ${post.tags && post.tags.map((t) => `<category>${t}</category>`).join('')}
   </item>
 `
+}
 
 const generateRss = (config, posts, page = 'feed.xml') => `
-  <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <rss version="2.0" xmlns:atom="http:
     <channel>
       <title>${escape(config.title)}</title>
       <link>${config.siteUrl}/blog</link>
@@ -35,7 +39,7 @@ const generateRss = (config, posts, page = 'feed.xml') => `
       <language>${config.language}</language>
       <managingEditor>${config.email} (${config.author})</managingEditor>
       <webMaster>${config.email} (${config.author})</webMaster>
-      <lastBuildDate>${new Date(posts[0].date).toUTCString()}</lastBuildDate>
+      <lastBuildDate>${posts.length > 0 ? new Date(posts[0].date).toUTCString() : new Date().toUTCString()}</lastBuildDate>
       <atom:link href="${config.siteUrl}/${page}" rel="self" type="application/rss+xml"/>
       ${posts.map((post) => generateRssItem(config, post)).join('')}
     </channel>
@@ -44,7 +48,7 @@ const generateRss = (config, posts, page = 'feed.xml') => `
 
 async function generateRSS(config, allBlogs, page = 'feed.xml') {
   const publishPosts = allBlogs.filter((post) => post.draft !== true)
-  // RSS for blog post
+
   if (publishPosts.length > 0) {
     const rss = generateRss(config, sortPosts(publishPosts))
     writeFileSync(`./public/${page}`, rss)
@@ -65,6 +69,15 @@ async function generateRSS(config, allBlogs, page = 'feed.xml') {
 
 const rss = () => {
   generateRSS(siteMetadata, allBlogs)
-  console.log('RSS feed generated...')
+
+  if (typeof allReflections !== 'undefined' && allReflections.length > 0) {
+    const reflectionsWithType = allReflections.map((reflection) => ({
+      ...reflection,
+      type: 'Reflection',
+    }))
+    generateRSS(siteMetadata, reflectionsWithType, 'reflections-feed.xml')
+  }
+
+  console.log('RSS feeds generated...')
 }
 export default rss

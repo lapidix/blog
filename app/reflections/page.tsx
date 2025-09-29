@@ -8,7 +8,7 @@ const POSTS_PER_PAGE = 5
 
 export const metadata = genPageMetadata({
   title: 'Reflection',
-  description: 'Collection of reflection posts',
+  description: 'Personal reflections and insights from my journey as a developer',
   slug: 'reflection',
 })
 
@@ -32,7 +32,7 @@ export default function BlogPage() {
       initialDisplayPosts={initialDisplayPosts}
       pagination={pagination}
       title="All Reflections"
-      description="Collection of reflection posts"
+      description="Personal reflections and insights from my journey as a developer"
     />
   )
 }
