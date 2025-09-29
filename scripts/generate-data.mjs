@@ -13,13 +13,14 @@ const __dirname = dirname(__filename)
 async function generateData() {
   try {
     // contentlayer 생성된 데이터 동적 import
-    const { allBlogs } = await import('../.contentlayer/generated/index.mjs')
+    const { allBlogs, allReflections } = await import('../.contentlayer/generated/index.mjs')
 
     // Tag count 생성
     const tagCount = {}
     const isProduction = process.env.NODE_ENV === 'production'
 
-    allBlogs.forEach((file) => {
+    const allDocs = [...allBlogs, ...allReflections]
+    allDocs.forEach((file) => {
       if (file.tags && (!isProduction || file.draft !== true)) {
         file.tags.forEach((tag) => {
           const formattedTag = GithubSlugger.slug(tag)
@@ -42,7 +43,7 @@ async function generateData() {
     ) {
       writeFileSync(
         `public/${siteMetadata.search.kbarConfig.searchDocumentsPath}`,
-        JSON.stringify(allCoreContent(sortPosts(allBlogs)))
+        JSON.stringify(allCoreContent(sortPosts(allDocs)))
       )
       console.log('Local search index generated...')
     }

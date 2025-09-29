@@ -145,9 +145,61 @@ export const Authors = defineDocumentType(() => ({
   computedFields,
 }))
 
+export const Reflection = defineDocumentType(() => ({
+  name: 'Reflection',
+  filePathPattern: 'reflections/*.mdx',
+  contentType: 'mdx',
+  fields: {
+    title: { type: 'string', required: true },
+    date: { type: 'date', required: true },
+    tags: { type: 'list', of: { type: 'string' }, default: [] },
+    lastmod: { type: 'date' },
+    draft: { type: 'boolean' },
+    summary: { type: 'string' },
+    images: { type: 'json' },
+    authors: { type: 'list', of: { type: 'string' } },
+    layout: { type: 'string' },
+    bibliography: { type: 'string' },
+    canonicalUrl: { type: 'string' },
+  },
+  computedFields: {
+    ...computedFields,
+    structuredData: {
+      type: 'json',
+      resolve: (doc) => ({
+        '@context': 'https://schema.org',
+        '@type': 'BlogPosting',
+        headline: doc.title,
+        datePublished: doc.date,
+        dateModified: doc.lastmod || doc.date,
+        description: doc.summary,
+        image: doc.images ? doc.images[0] : siteMetadata.socialBanner,
+        url: doc.canonicalUrl || `${siteMetadata.siteUrl}/reflection/${doc.slug}`,
+        author: {
+          '@type': 'Person',
+          name: siteMetadata.author,
+          url: siteMetadata.siteUrl,
+        },
+        publisher: {
+          '@type': 'Organization',
+          name: siteMetadata.title,
+          logo: {
+            '@type': 'ImageObject',
+            url: `${siteMetadata.siteUrl}${siteMetadata.siteLogo}`,
+          },
+        },
+        mainEntityOfPage: {
+          '@type': 'WebPage',
+          '@id': doc.canonicalUrl || `${siteMetadata.siteUrl}/reflection/${doc.slug}`,
+        },
+      }),
+    },
+  },
+}))
+
 export default makeSource({
   contentDirPath: 'data',
-  documentTypes: [Blog, Authors],
+  documentTypes: [Blog, Authors, Reflection],
   mdx: {
     cwd: process.cwd(),
     remarkPlugins: [

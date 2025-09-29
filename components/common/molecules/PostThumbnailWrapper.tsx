@@ -8,6 +8,7 @@ interface PostThumbnailWrapper {
   image: string
   className?: string
   imageObjectFit: 'fill' | 'contain' | 'cover' | 'none' | 'scale-down'
+  href?: string
 }
 
 const PostThumbnailWrapper = ({
@@ -16,6 +17,7 @@ const PostThumbnailWrapper = ({
   image,
   className,
   imageObjectFit,
+  href,
 }: PostThumbnailWrapper) => {
   return (
     <div
@@ -24,7 +26,7 @@ const PostThumbnailWrapper = ({
     >
       <Link
         className="block relative overflow-hidden bg-clip-border w-auto rounded-xl h-72 bg-white"
-        href={`/posts/${slug}`}
+        href={href ?? `/posts/${slug}`}
         aria-label={`Read "${title}"`}
       >
         <Image

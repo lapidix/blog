@@ -5,7 +5,7 @@ import Link from '@/components/common/atoms/Link'
 import PostContainer from '@/components/posts/organisms/PostContainer'
 import siteMetadata from '@/data/siteMetadata'
 import tagData from 'app/tag-data.json'
-import { allAuthors, type Authors, type Blog } from 'contentlayer/generated'
+import { allAuthors, type Authors, type Blog, type Reflection } from 'contentlayer/generated'
 import { usePathname } from 'next/navigation'
 import { CoreContent } from 'pliny/utils/contentlayer.js'
 
@@ -13,12 +13,15 @@ interface PaginationProps {
   totalPages: number
   currentPage: number
 }
+type BlogLike = Blog | Reflection
+type CoreBlogLike = CoreContent<Blog> | CoreContent<Reflection>
 interface ListLayoutProps {
-  posts: CoreContent<Blog>[]
+  posts: CoreBlogLike[]
   title: string
-  initialDisplayPosts?: CoreContent<Blog>[]
+  initialDisplayPosts?: CoreBlogLike[]
   pagination?: PaginationProps
   author?: Authors
+  description?: string
 }
 
 function Pagination({ totalPages, currentPage }: PaginationProps) {
@@ -66,6 +69,7 @@ export default function ListLayoutWithTags({
   title,
   initialDisplayPosts = [],
   pagination,
+  description,
 }: ListLayoutProps) {
   const pathname = usePathname()
   const tagCounts = tagData as Record<string, number>
@@ -82,7 +86,7 @@ export default function ListLayoutWithTags({
             {title}
           </h1>
           <p className="text-lg leading-7 text-gray-500 dark:text-gray-400">
-            {siteMetadata.description}
+            {description || siteMetadata.description}
           </p>
         </div>
 
