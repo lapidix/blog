@@ -6,11 +6,12 @@ import { escape } from 'pliny/utils/htmlEscaper.js'
 import { allBlogs, allReflections } from '../.contentlayer/generated/index.mjs'
 
 import { readFileSync } from 'fs'
-import { join } from 'path'
+import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import siteMetadata from '../data/siteMetadata.js'
 
 const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 const tagData = JSON.parse(readFileSync(join(__dirname, '../app/tag-data.json'), 'utf8'))
 
 const generateRssItem = (config, post) => {
@@ -31,7 +32,7 @@ const generateRssItem = (config, post) => {
 }
 
 const generateRss = (config, posts, page = 'feed.xml') => `
-  <rss version="2.0" xmlns:atom="http:
+  <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
     <channel>
       <title>${escape(config.title)}</title>
       <link>${config.siteUrl}/blog</link>
