@@ -10,9 +10,20 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import siteMetadata from '../data/siteMetadata.js'
 
+// ES 모듈에서 __dirname 대신 import.meta.url 사용
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
-const tagData = JSON.parse(readFileSync(join(__dirname, '../app/tag-data.json'), 'utf8'))
+
+// 상대 경로로 tag-data.json 파일 접근
+const tagDataPath = join(__dirname, '../app/tag-data.json')
+let tagData = {}
+try {
+  tagData = JSON.parse(readFileSync(tagDataPath, 'utf8'))
+} catch (error) {
+  console.warn(`Warning: Could not read tag data from ${tagDataPath}`)
+  console.warn(error)
+  tagData = {}
+}
 
 const generateRssItem = (config, post) => {
   const isReflection = post.type === 'Reflection'
@@ -55,23 +66,29 @@ async function generateRSS(config, allBlogs, page = 'feed.xml') {
     writeFileSync(`./public/${page}`, rss)
   }
 
-  if (publishPosts.length > 0) {
+  // Only process tags if we have tag data and posts
+  if (publishPosts.length > 0 && Object.keys(tagData).length > 0) {
     for (const tag of Object.keys(tagData)) {
-      const filteredPosts = allBlogs.filter((post) =>
-        post.tags.map((t) => GithubSlugger.slug(t)).includes(tag)
+      const filteredPosts = allBlogs.filter(
+        (post) => post.tags && post.tags.map((t) => GithubSlugger.slug(t)).includes(tag)
       )
-      const rss = generateRss(config, filteredPosts, `tags/${tag}/${page}`)
-      const rssPath = path.join('public', 'tags', tag)
-      mkdirSync(rssPath, { recursive: true })
-      writeFileSync(path.join(rssPath, page), rss)
+      if (filteredPosts.length > 0) {
+        const rss = generateRss(config, filteredPosts, `tags/${tag}/${page}`)
+        const rssPath = path.join('public', 'tags', tag)
+        mkdirSync(rssPath, { recursive: true })
+        writeFileSync(path.join(rssPath, page), rss)
+      }
     }
   }
 }
 
 const rss = () => {
+  // 블로그 포스트용 RSS 생성
   generateRSS(siteMetadata, allBlogs)
 
+  // 리플렉션용 RSS 생성 (allReflections가 존재하는 경우)
   if (typeof allReflections !== 'undefined' && allReflections.length > 0) {
+    // 리플렉션 포스트에 타입 정보 추가
     const reflectionsWithType = allReflections.map((reflection) => ({
       ...reflection,
       type: 'Reflection',
@@ -81,4 +98,5 @@ const rss = () => {
 
   console.log('RSS feeds generated...')
 }
+
 export default rss
