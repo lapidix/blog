@@ -50,7 +50,7 @@ export async function generateMetadata({
   }
 
   const keywords = post.tags || []
-  const postUrl = `${siteMetadata.siteUrl}/reflection/${post.slug}`
+  const postUrl = `${siteMetadata.siteUrl}/reflections/${post.slug}`
   return {
     title: {
       absolute: post.title,
@@ -126,7 +126,7 @@ export default async function Page({ params }: { params: { slug: string[]; local
   const jsonLd = post.structuredData
 
   // JSON-LD 구조화된 데이터 개선
-  const postUrl = `${siteMetadata.siteUrl}/reflection/${post.slug}`
+  const postUrl = `${siteMetadata.siteUrl}/reflections/${post.slug}`
   jsonLd['@context'] = 'https://schema.org'
   jsonLd['@type'] = 'BlogPosting'
   jsonLd['mainEntityOfPage'] = {
