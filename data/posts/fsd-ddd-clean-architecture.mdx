@@ -38,7 +38,7 @@ FSD는 **프론트엔드 애플리케이션의 복잡도 증가 문제를 체계
 
 ![](/static/images/fsd-ddd-clean-architecture/fsd.jpg)
 
-```
+```text hideLineNumbers
 src/
 ├── shared/       # 재사용 가능한 유틸리티, API 클라이언트
 ├── entities/     # 비즈니스 엔티티 (User, Post, Comment)
@@ -51,8 +51,7 @@ src/
 핵심 원칙 중 하나는 의존성의 방향이 항상 위에서 아래로만 흐른다는 점입니다. 즉, 상위 레이어가 하위 레이어를 참조할 수 있지만, 반대로 하위 레이어가 상위 레이어를 직접 참조해서는 안 됩니다.
 또한 Public API를 통해 `index.ts` 기반의 명시적 인터페이스로만 레이어 간 통신하며, 슬라이스별 격리를 통해 동일 레이어 내 슬라이스 간 직접 의존성을 방지합니다.
 
-```typescript
-//src/features/post/hooks/useGetPosts.ts
+```typescript:src/features/post/hooks/useGetPosts.ts
 // 올바른 의존성 방향
 import { PostService } from '../post/services' // 같은 슬라이스
 import { Post } from '@/entities/post' // 하위 레이어

@@ -214,7 +214,7 @@ export default makeSource({
       rehypeAutolinkHeadings,
       rehypeKatex,
       [rehypeCitation, { path: path.join(root, 'data') }],
-      [rehypePrismPlus, { defaultLanguage: 'js', ignoreMissing: true }],
+      [rehypePrismPlus, { showLineNumbers: true, defaultLanguage: 'js', ignoreMissing: true }],
       rehypePresetMinify,
     ],
   },
