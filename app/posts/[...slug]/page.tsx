@@ -2,7 +2,7 @@ import 'css/prism.css'
 import 'katex/dist/katex.css'
 
 import PageTitle from '@/components/common/atoms/PageTitle'
-import { components } from '@/components/posts/atoms/MDXComponents'
+import { components } from '@/components/posts/organisms/MDXComponents'
 import siteMetadata from '@/data/siteMetadata'
 import PostBanner from '@/layouts/PostBanner'
 import PostLayout from '@/layouts/PostLayout'

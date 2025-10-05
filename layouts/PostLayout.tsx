@@ -117,26 +117,30 @@ export default function PostLayout({ content, authorDetails, next, prev, childre
                   </div>
                 )}
                 {(next || prev) && (
-                  <div className="flex justify-between py-4 xl:block xl:space-y-8 xl:py-8">
-                    {prev && prev.path && (
-                      <div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4 xl:py-8">
+                    {prev && prev.path ? (
+                      <div className="md:pr-4">
                         <h2 className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                           Previous Article
                         </h2>
-                        <div className="text-primary-500 hover:text-primary-600 dark:hover:text-primary-400">
+                        <div className="text-primary-500 hover:text-primary-600 dark:hover:text-primary-400 truncate">
                           <Link href={`/${prev.path}`}>{prev.title}</Link>
                         </div>
                       </div>
+                    ) : (
+                      <div />
                     )}
-                    {next && next.path && (
-                      <div>
+                    {next && next.path ? (
+                      <div className="md:pl-4 md:text-right">
                         <h2 className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                           Next Article
                         </h2>
-                        <div className="text-primary-500 hover:text-primary-600 dark:hover:text-primary-400">
+                        <div className="text-primary-500 hover:text-primary-600 dark:hover:text-primary-400 truncate">
                           <Link href={`/${next.path}`}>{next.title}</Link>
                         </div>
                       </div>
+                    ) : (
+                      <div />
                     )}
                   </div>
                 )}

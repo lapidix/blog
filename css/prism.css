@@ -24,8 +24,8 @@
 
 .remark-code-title + div > pre {
   @apply mt-0 rounded-t-none;
-  padding-left: 0rem;
-  padding-right: 0rem;
+  padding-left: 0;
+  padding-right: 0;
   border: 1px solid rgba(137, 221, 255, 0.3);
   box-shadow:
     0 6px 12px rgba(0, 0, 0, 0.2),
@@ -98,6 +98,7 @@ pre[class*='language-'] {
   -moz-hyphens: none;
   -ms-hyphens: none;
   hyphens: none;
+  overflow-x: hidden;
 }
 
 code[class*='language-']::-moz-selection,
@@ -122,7 +123,7 @@ pre[class*='language-'] ::selection {
 
 pre[class*='language-'] {
   margin: 0.5em 0;
-  padding: 0.875rem 0.5rem;
+  padding: 0.875rem 0;
   border-radius: 0.375rem;
   border: 1px solid rgba(137, 221, 255, 0.3);
   box-shadow:
@@ -136,8 +137,10 @@ pre[class*='language-'] {
 .remark-code-title + div > pre[class*='language-'] {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
-  padding: 0.875rem 0.5rem;
+  padding: 0.875rem 0;
   margin-top: 0;
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 /* Pre with non-title  */

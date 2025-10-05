@@ -5,7 +5,13 @@ import TOCInline from 'pliny/ui/TOCInline'
 
 import Image from '../../common/atoms/Image'
 import CustomLink from '../../common/atoms/Link'
-import { ErrorCallout, InfoCallout, NoteCallout, TipCallout, WarningCallout } from './Callout'
+import {
+  ErrorCallout,
+  InfoCallout,
+  NoteCallout,
+  TipCallout,
+  WarningCallout,
+} from '../atoms/Callout'
 
 export const components: MDXComponents = {
   Image,

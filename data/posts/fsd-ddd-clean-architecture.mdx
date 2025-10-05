@@ -38,7 +38,7 @@ FSD는 **프론트엔드 애플리케이션의 복잡도 증가 문제를 체계
 
 ![](/static/images/fsd-ddd-clean-architecture/fsd.jpg)
 
-```text hideLineNumbers
+```text showLineNumbers=false
 src/
 ├── shared/       # 재사용 가능한 유틸리티, API 클라이언트
 ├── entities/     # 비즈니스 엔티티 (User, Post, Comment)
@@ -102,8 +102,7 @@ Clean Architecture는 동심원 형태의 4개 레이어로 구성되며, 각 �
 
 핵심 비즈니스 규칙을 담는 가장 안쪽 레이어입니다. 애플리케이션이나 시스템과 무관하게 존재하는 순수한 비즈니스 개념과 규칙을 표현하며, 외부 변화에 가장 적게 영향받습니다. 예를 들어 "사용자명은 3-20자의 영문, 숫자, 언더스코어만 허용한다"는 규칙은 어떤 기술을 사용하든 변하지 않는 핵심 규칙입니다.
 
-```typescript
-// /src/entities/user/core/user.domain.ts
+```typescript:/src/entities/user/core/user.domain.ts
 export class User implements UserEntity {
   constructor(
     private _id: string,
@@ -128,8 +127,7 @@ export class User implements UserEntity {
 
 애플리케이션의 핵심 기능들을 구현하는 레이어입니다. 시스템이 사용자에게 제공하는 구체적인 서비스를 정의하며, 엔티티들을 활용해 특정 비즈니스 로직을 처리합니다. 시스템의 입출력을 정의하고 애플리케이션 흐름을 제어하되, 외부 시스템과는 인터페이스를 통해서만 소통하여 구체적인 구현에 의존하지 않습니다.
 
-```typescript
-// /src/features/user/services/user.service.ts
+```typescript:/src/features/user/services/user.service.ts
 import { UserProfileDto, UserRepository } from '@/entities/user'
 import { BaseError } from '@/shared/libs/errors'
 import { UserUseCase } from '../usecase/user.usecase'
@@ -157,8 +155,7 @@ export const UserService = (userRepository: UserRepository): UserUseCase => ({
 
 외부 세계와 내부 비즈니스 로직 사이의 변환 계층입니다. 외부에서 들어오는 데이터를 유스케이스와 엔티티가 이해할 수 있는 형태로 변환하고, 반대로 내부 데이터를 외부 시스템이 원하는 형태로 내보냅니다. Repository 구현체, API 어댑터, 데이터 매퍼 등이 여기에 해당하며, 외부 데이터 소스가 바뀌어도 내부 로직에는 영향을 주지 않도록 격리시키는 것이 핵심입니다.
 
-```typescript
-// /src/entities/user/infrastructure/repository/user.api.repository.ts
+```typescript:/src/entities/user/infrastructure/repository/user.api.repository.ts
 export class UserApiRepository implements UserRepository {
   constructor(private api: ReturnType<typeof UserAdapter>) {}
 
@@ -173,8 +170,7 @@ export class UserApiRepository implements UserRepository {
 
 가장 바깥쪽 레이어로 웹 프레임워크, 데이터베이스, UI, 외부 API 등 구체적인 기술 구현체들이 위치합니다. 이 레이어의 변경은 내부 레이어에 영향을 주지 않아야 하며, 시스템의 세부 구현사항을 담당합니다.
 
-```typescript
-// /src/shared/api/api.ts
+```typescript:/src/shared/api/api.ts
 export class ApiClient {
   private baseURL: string
 
@@ -216,7 +212,7 @@ export const apiClient = new ApiClient({
 
 ### 레이어별 구조와 관심사 분리
 
-```
+```text showLineNumbers=false
 src/
 ├── shared/       # 공통 유틸리티, API 클라이언트, 도메인 기반 클래스
 │   ├── api/      # API 클라이언트, Query Client
@@ -239,7 +235,7 @@ src/
 
 ### 슬라이스별 내부 구조와 Public API
 
-```
+```text showLineNumbers=false
 entities/post/
 ├── core/           # 도메인 로직
 │   ├── post.domain.ts     # Entity
@@ -254,8 +250,8 @@ entities/post/
 └── index.ts        # Public API
 ```
 
-```typescript
-// /src/entities/post/index.ts - Public API 정의
+```typescript:/src/entities/post/index.ts
+// Public API 정의
 export { Post } from './core/post.domain'
 export { PostFactory } from './core/post.factory'
 export { PostRepository } from './core/post.repository'
@@ -270,8 +266,7 @@ export type { PostDto, PostEntity } from './types'
 
 ### Domain
 
-```typescript
-// /src/entities/user/core/user.domain.ts
+```typescript:/src/entities/user/core/user.domain.ts
 import { UserEntity } from '@/entities/user/types/user.types'
 import { BaseError } from '@/shared/libs/errors'
 
@@ -302,8 +297,8 @@ export class User implements UserEntity {
 
 ### Value Object
 
-```typescript
-// /src/shared/domain/value-object.ts - ValueObject 추상 클래스
+```typescript:/src/shared/domain/value-object.ts
+//  ValueObject 추상 클래스
 export abstract class ValueObject<T> {
   protected readonly _value: T
 
@@ -350,8 +345,9 @@ export abstract class ValueObject<T> {
     return this._value
   }
 }
+```
 
-// /src/entities/comment/value-objects/comment-body.vo.ts
+```typescript:/src/entities/comment/value-objects/comment-body.vo.ts
 export class CommentBody extends ValueObject<string> {
   private static readonly MAX_LENGTH = 100
 
@@ -382,8 +378,7 @@ CommentBody와 같이 단순 문자열을 감쌀 때도, 생성 시점에 비즈
 
 ### Factory
 
-```typescript
-// /src/entities/post/core/post.factory.ts
+```typescript:/src/entities/post/core/post.factory.ts
 export class PostFactory {
   // 새로운 포스트 생성
   static createNew(title: string, body: string, user: UserReference, image: string = ''): Post {
@@ -425,8 +420,7 @@ Factory는 복잡한 도메인 객체 생성을 체계적으로 관리하는 패
 
 ### Repository
 
-```typescript
-// /src/entities/comment/core/comment.repository.ts
+```typescript:/src/entities/comment/core/comment.repository.ts
 
 export interface CommentRepository {
   getByPostId(postId: string): Promise<Comment[]>
@@ -448,8 +442,7 @@ Repository는 도메인 객체에 대한 컬렉션처럼 동작하는 인터페�
 
 ### Application Layer
 
-```typescript
-// /src/features/post/services/post.service.ts
+```typescript:/src/features/post/services/post.service.ts
 export const PostService = (
   postRepository: PostRepository, // 인터페이스에 의존
   commentRepository: CommentRepository,
@@ -521,8 +514,7 @@ UseCase는 애플리케이션이 사용자에게 제공하는 구체적인 기�
 
 ### Infrastructure Layer
 
-```typescript
-// src/entities/post/infrastructure/repository/post.api.repository.ts
+```typescript:/src/entities/post/infrastructure/repository/post.api.repository.ts
 export class PostApiRepository implements PostRepository {
   private api: ReturnType<typeof PostAdapter>
 
@@ -558,8 +550,9 @@ export class PostApiRepository implements PostRepository {
     }
   }
 }
+```
 
-// src/entities/post/mapper/post.mapper.ts
+```typescript:/src/entities/post/mapper/post.mapper.ts
 export class PostMapper {
   static toDomain(dto: PostDto): Post {
     return new Post({
@@ -665,8 +658,7 @@ getAllPosts: async (limit?: number, skip?: number): Promise<PostListResult> => {
 
 Comment 엔티티에 `CommentBody` Value Object를 적용하면서 여러 가지 고민이 들었습니다.
 
-```typescript
-// src/entities/comment/value-objects/comment-body.vo.ts
+```typescript:/src/entities/comment/value-objects/comment-body.vo.ts
 export class CommentBody extends ValueObject<string> {
   private static readonly MAX_LENGTH = 100
 
