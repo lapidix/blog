@@ -20,6 +20,9 @@
     0 2px 4px rgba(0, 0, 0, 0.15);
   position: relative;
   z-index: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .remark-code-title + div > pre {
