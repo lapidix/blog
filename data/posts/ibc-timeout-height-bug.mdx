@@ -93,7 +93,7 @@ Relayer가 주기적으로 Chain B의 상태를 확인하다가 Chain B의 현�
   </figcaption>
 </figure>
 
-여기서 `Packet Timeout Height`를 확인하면 이상하다는 것을 알 수 있습니다.  
+두 트랜잭션 모두 정상 처리된 트랜잭션입니다. 사진 속 `Packet Timeout Height`를 확인하면 이상하다는 것을 알 수 있습니다.  
 정상적인 경우 상대 체인의 revision number는 1이고, 그 뒤에 타임아웃이 발생할 블록 높이가 따라옵니다. 그런데 비정상 트랜잭션을 보면 revision number가 비정상적으로 높고, 블록 높이도 말이 안 되는 수준입니다.  
 그래서 도대체 왜 이런일이 발생하는지를 하나하나 찾아봤습니다.
 
