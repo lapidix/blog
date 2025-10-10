@@ -4,7 +4,7 @@ import { ReactNode } from 'react'
 const TipIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    className="h-5 w-5 text-green-600 dark:text-green-400"
+    className="h-5 w-5 text-emerald-600 dark:text-emerald-400"
     fill="none"
     viewBox="0 0 24 24"
     stroke="currentColor"
@@ -21,7 +21,7 @@ const TipIcon = () => (
 const NoteIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    className="h-5 w-5 text-blue-600 dark:text-blue-400"
+    className="h-5 w-5 text-sky-600 dark:text-sky-300"
     fill="none"
     viewBox="0 0 24 24"
     stroke="currentColor"
@@ -30,7 +30,7 @@ const NoteIcon = () => (
       strokeLinecap="round"
       strokeLinejoin="round"
       strokeWidth={2}
-      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
     />
   </svg>
 )
@@ -81,14 +81,14 @@ const InfoIcon = () => (
       strokeLinecap="round"
       strokeLinejoin="round"
       strokeWidth={2}
-      d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"
+      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
     />
   </svg>
 )
 
 export const TipCallout = ({ children }: { children: ReactNode }) => {
   return (
-    <div className="bg-green-300/20 dark:bg-green-700/30 border-l-4 border-green-500 rounded-md px-5 pb-0.5 mb-5">
+    <div className="bg-emerald-300/20 dark:bg-emerald-900/30 border-l-4 border-emerald-600 rounded-md px-5 pb-0.5 mb-5">
       <div className="flex items-center pt-5">
         <span className="mr-2">
           <TipIcon />
@@ -102,14 +102,14 @@ export const TipCallout = ({ children }: { children: ReactNode }) => {
 
 export const NoteCallout = ({ children }: { children: ReactNode }) => {
   return (
-    <div className="bg-blue-300/20 dark:bg-blue-700/30 border-l-4 border-blue-500 rounded-md px-5 pb-0.5 mb-5">
-      <div className="flex items-center pt-5">
+    <div className="bg-sky-100/80 dark:bg-sky-900/30 border-l-4 border-sky-500 rounded-md px-5 pb-3 mb-5">
+      <div className="flex items-center pt-4 pb-2">
         <span className="mr-2">
           <NoteIcon />
         </span>
-        <span className="font-extrabold">Note</span>
+        <span className="font-bold text-sky-700 dark:text-sky-300">Note</span>
       </div>
-      {children}
+      <div className="text-gray-800 dark:text-gray-100">{children}</div>
     </div>
   )
 }

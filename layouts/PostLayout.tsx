@@ -117,9 +117,9 @@ export default function PostLayout({ content, authorDetails, next, prev, childre
                   </div>
                 )}
                 {(next || prev) && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4 xl:py-8">
+                  <div className="grid grid-cols-1 gap-4 py-4 xl:py-8">
                     {prev && prev.path ? (
-                      <div className="md:pr-4">
+                      <div>
                         <h2 className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                           Previous Article
                         </h2>
@@ -131,7 +131,7 @@ export default function PostLayout({ content, authorDetails, next, prev, childre
                       <div />
                     )}
                     {next && next.path ? (
-                      <div className="md:pl-4 md:text-right">
+                      <div>
                         <h2 className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                           Next Article
                         </h2>

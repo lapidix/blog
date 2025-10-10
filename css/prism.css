@@ -52,11 +52,12 @@
 
 .code-line.highlight-line,
 .highlight-line {
-  background: rgba(128, 203, 196, 0.1) !important;
+  background: rgba(128, 203, 196, 0.15) !important;
   border-left: 4px solid #80cbc4;
   padding-left: calc(0.5rem - 4px);
   padding-right: 0.5rem;
   margin-left: 0;
+  width: max-content;
 }
 
 .code-line.inserted {
@@ -206,7 +207,7 @@ pre:not(.remark-code-title + div > pre) {
 }
 
 .token.color {
-  color: #f2ff00;
+  color: #f07178;
 }
 
 .token.comment {
