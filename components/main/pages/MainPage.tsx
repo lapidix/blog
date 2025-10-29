@@ -2,7 +2,7 @@ import { Authors, Blog } from 'contentlayer/generated'
 import { CoreContent } from 'pliny/utils/contentlayer.js'
 import { Fragment } from 'react'
 import IntroduceContainer from '../templates/IntroduceContainer'
-import LatestPostContainer from '../templates/LatestPostContainer'
+import TrendingPostContainer from '../templates/TrendingPostContainer'
 
 export default function MainPage({
   posts,
@@ -15,7 +15,7 @@ export default function MainPage({
     <>
       <Fragment>
         <IntroduceContainer />
-        <LatestPostContainer posts={posts} author={author} />
+        <TrendingPostContainer posts={posts} author={author} />
       </Fragment>
 
       {/* {siteMetadata.newsletter?.provider && (

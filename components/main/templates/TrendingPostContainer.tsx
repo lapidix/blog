@@ -4,7 +4,7 @@ import { CoreContent } from 'pliny/utils/contentlayer.js'
 import { Fragment } from 'react'
 import MainPostCard from '../organisms/MainPostCard'
 const MAX_DISPLAY = 4
-const LatestPostContainer = ({
+const TrendingPostContainer = ({
   posts,
   author,
 }: {
@@ -15,7 +15,7 @@ const LatestPostContainer = ({
     <Fragment>
       <div className="space-y-2 pb-2 pt-6 md:space-y-5 ">
         <h1 className="text-3xl font-extrabold leading-9 tracking-tight text-gray-900 dark:text-gray-100 sm:text-4xl sm:leading-10 md:text-6xl md:leading-14">
-          Latest Posts
+          Trending Posts
         </h1>
       </div>
 
@@ -25,9 +25,10 @@ const LatestPostContainer = ({
         style={{ containIntrinsicSize: '0 500px' }}
       >
         {!posts.length && 'No posts found.'}
-        {posts.slice(0, MAX_DISPLAY).map((post, index) => {
+        {posts.map((post, index) => {
           const { slug } = post
           const isLastElement = index === MAX_DISPLAY - 1
+
           return (
             <li
               key={slug}
@@ -53,4 +54,4 @@ const LatestPostContainer = ({
   )
 }
 
-export default LatestPostContainer
+export default TrendingPostContainer

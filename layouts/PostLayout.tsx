@@ -2,9 +2,12 @@ import Image from '@/components/common/atoms/Image'
 import Link from '@/components/common/atoms/Link'
 import PageTitle from '@/components/common/atoms/PageTitle'
 import SectionContainer from '@/components/common/atoms/SectionContainer'
+import { ReadingTime } from '@/components/posts/atoms/ReadingTime'
 import CustomTOC from '@/components/posts/molecules/CustomTOC'
+import ViewTracker from '@/components/posts/molecules/ViewTracker'
 import Comments from '@/components/posts/organisms/Comments'
 import ScrollTopAndComment from '@/components/posts/organisms/ScrollTopAndComment'
+
 import Tag from '@/components/tags/Tag'
 import siteMetadata from '@/data/siteMetadata'
 import type { Authors, Blog } from 'contentlayer/generated'
@@ -27,7 +30,7 @@ interface LayoutProps {
 }
 
 export default function PostLayout({ content, authorDetails, next, prev, children }: LayoutProps) {
-  const { filePath, path, slug, date, title, tags, summary, images } = content
+  const { filePath, path, slug, date, title, tags, summary, images, readingTime } = content
   const basePath = path.split('/')[0]
 
   return (
@@ -56,7 +59,7 @@ export default function PostLayout({ content, authorDetails, next, prev, childre
             <dl className="pb-10 pt-6 xl:border-b xl:border-gray-200 xl:pt-11 xl:dark:border-gray-700">
               <dt className="sr-only">Authors</dt>
               <dd>
-                <ul className="flex flex-wrap justify-center gap-4 sm:space-x-12 xl:block xl:space-x-0 xl:space-y-8">
+                <ul className="flex flex-wrap justify-center gap-4 sm:space-x-12 xl:block xl:space-x-0 ">
                   {authorDetails.map((author) => (
                     <li className="flex items-center space-x-2" key={author.name}>
                       {author.avatar && (
@@ -88,6 +91,10 @@ export default function PostLayout({ content, authorDetails, next, prev, childre
                     </li>
                   ))}
                 </ul>
+                <div className="flex xl:hidden w-full items-center justify-center gap-4 pt-6">
+                  {readingTime && <ReadingTime readingTime={readingTime} />}
+                  {/* <ViewTracker slug={slug} /> */}
+                </div>
               </dd>
             </dl>
             <div className="divide-y divide-gray-200 dark:divide-gray-700 xl:col-span-3 xl:row-span-2 xl:pb-0">
@@ -104,6 +111,10 @@ export default function PostLayout({ content, authorDetails, next, prev, childre
             </div>
             <footer>
               <div className="divide-gray-200 text-sm font-medium leading-5 dark:divide-gray-700 xl:col-start-1 xl:row-start-2 xl:divide-y">
+                <div className="hidden xl:flex w-full items-start justify-center flex-col gap-4 py-6 px-1">
+                  {readingTime && <ReadingTime readingTime={readingTime} />}
+                  <ViewTracker slug={slug} />
+                </div>
                 {tags && (
                   <div className="py-4 xl:py-8">
                     <h2 className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">

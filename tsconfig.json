@@ -22,15 +22,16 @@
       "@/layouts/*": ["layouts/*"],
       "@/css/*": ["css/*"],
       "@/libs/*": ["lib/*"],
-      "contentlayer/generated": ["./.contentlayer/generated"],
+      "@/hooks/*": ["hooks/*"],
+      "contentlayer/generated": ["./.contentlayer/generated"]
     },
     "typeRoots": ["./types", "./node_modules/@types"],
     "plugins": [
       {
-        "name": "next",
-      },
+        "name": "next"
+      }
     ],
-    "strictNullChecks": true,
+    "strictNullChecks": true
   },
   "include": [
     "next-env.d.ts",
@@ -42,7 +43,7 @@
     "**/*.json",
     ".contentlayer/generated",
     ".contentlayer/generated/**/*.json",
-    ".next/types/**/*.ts",
+    ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules"],
+  "exclude": ["node_modules"]
 }
