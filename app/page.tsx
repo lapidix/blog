@@ -8,22 +8,35 @@ interface PostWithViews extends CoreContent<Blog> {
 
 async function getTrendingPosts(): Promise<PostWithViews[]> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/trending-posts`, {
-      next: { revalidate: 7200 },
+    const { kv } = await import('@vercel/kv')
+
+    // Sorted Set에서 상위 4개 포스트 가져오기 (높은 점수부터)
+    const trendingSlugs = await kv.zrange('trending:posts', 0, 4, {
+      rev: true,
+      withScores: true,
     })
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch trending posts: ${response.status}`)
+    const posts = allCoreContent(sortPosts(allBlogs))
+    const trendingPosts: PostWithViews[] = []
+
+    if (trendingSlugs && trendingSlugs.length > 0) {
+      for (let i = 0; i < trendingSlugs.length; i += 2) {
+        const slug = trendingSlugs[i] as string
+        const views = trendingSlugs[i + 1] as number
+
+        const post = posts.find((p) => p.slug === slug)
+        if (post) {
+          trendingPosts.push({
+            ...post,
+            views: views,
+          })
+        }
+      }
     }
 
-    const trendingPosts = (await response.json()) as PostWithViews[]
-
-    // 인기 포스트가 4개 미만이면 최신 글로 채우기
     if (trendingPosts.length < 4) {
-      const sortedPosts = sortPosts(allBlogs)
-      const posts = allCoreContent(sortedPosts)
-
       const usedSlugs = new Set(trendingPosts.map((p) => p.slug))
+
       const remainingPosts = posts
         .filter((post) => !usedSlugs.has(post.slug))
         .slice(0, 4 - trendingPosts.length)
@@ -37,6 +50,7 @@ async function getTrendingPosts(): Promise<PostWithViews[]> {
 
     return trendingPosts
   } catch (error) {
+    console.error('Failed to fetch trending posts from KV:', error)
     // 오류 발생 시 최신 글 4개 반환
     const sortedPosts = sortPosts(allBlogs)
     const posts = allCoreContent(sortedPosts)

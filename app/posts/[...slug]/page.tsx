@@ -95,6 +95,9 @@ export const generateStaticParams = async () => {
   return paths
 }
 
+// ISR Config
+export const revalidate = 300
+
 export default async function Page({ params }: { params: { slug: string[]; locale: string } }) {
   const slug = decodeURI(params.slug.join('/'))
 
