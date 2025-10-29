@@ -28,23 +28,15 @@ interface LayoutProps {
   children: ReactNode
 }
 
-// 서버에서 조회수 가져오기
+// 서버에서 조회수 가져오기 (직접 KV 접근)
 async function getViewCount(slug: string): Promise<number> {
   try {
-    // 배포 환경에서는 실제 도메인 사용
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/views/${slug}`, {
-      next: { revalidate: 300 }, // 5분 캐시
-    })
-
-    if (!response.ok) {
-      console.error(`Failed to fetch view count: ${response.status}`)
-      return 0
-    }
-
-    const data = await response.json()
-    return data.views || 0
+    const { kv } = await import('@vercel/kv')
+    const views = (await kv.get(`views:${slug}`)) || 0
+    console.log(`Direct KV fetch for ${slug}: ${views}`)
+    return Number(views)
   } catch (error) {
-    console.error('Failed to fetch view count:', error)
+    console.error('Failed to fetch view count from KV:', error)
     return 0
   }
 }
@@ -57,7 +49,6 @@ export default async function PostLayout({
   children,
 }: LayoutProps) {
   const { filePath, path, slug, date, title, tags, summary, images, readingTime } = content
-  const basePath = path.split('/')[0]
 
   // 서버에서 조회수 가져오기
   const viewCount = await getViewCount(slug)
