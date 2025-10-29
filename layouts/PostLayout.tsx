@@ -31,10 +31,19 @@ interface LayoutProps {
 // 서버에서 조회수 가져오기
 async function getViewCount(slug: string): Promise<number> {
   try {
-    const response = await fetch(`/api/views/${slug}`, {
-      next: { revalidate: 7200 },
+    // 배포 환경에서는 실제 도메인 사용
+    const baseUrl =
+      process.env.NODE_ENV === 'production' ? 'https://lapidix.dev' : 'http://localhost:3000'
+
+    const response = await fetch(`${baseUrl}/api/views/${slug}`, {
+      next: { revalidate: 300 }, // 5분 캐시
     })
-    if (!response.ok) return 0
+
+    if (!response.ok) {
+      console.error(`Failed to fetch view count: ${response.status}`)
+      return 0
+    }
+
     const data = await response.json()
     return data.views || 0
   } catch (error) {
