@@ -8,7 +8,7 @@ interface PostWithViews extends CoreContent<Blog> {
 
 async function getTrendingPosts(): Promise<PostWithViews[]> {
   try {
-    const response = await fetch(`/api/trending-posts`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/trending-posts`, {
       next: { revalidate: 7200 },
     })
 

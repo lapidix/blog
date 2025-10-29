@@ -32,10 +32,7 @@ interface LayoutProps {
 async function getViewCount(slug: string): Promise<number> {
   try {
     // 배포 환경에서는 실제 도메인 사용
-    const baseUrl =
-      process.env.NODE_ENV === 'production' ? 'https://lapidix.dev' : 'http://localhost:3000'
-
-    const response = await fetch(`${baseUrl}/api/views/${slug}`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/views/${slug}`, {
       next: { revalidate: 300 }, // 5분 캐시
     })
 

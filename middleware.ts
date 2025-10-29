@@ -5,7 +5,6 @@ export function middleware(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith('/posts/')) {
     const pathname = request.nextUrl.pathname
 
-    // 페이지네이션 경로 제외 (/posts/page/1, /posts/page/2 등)
     if (pathname.includes('/page/')) {
       return NextResponse.next()
     }
@@ -20,17 +19,26 @@ export function middleware(request: NextRequest) {
       if (!hasViewed) {
         console.log(`Middleware: Incrementing views for ${slug}`)
 
-        // 백그라운드에서 조회수 증가
-        fetch(`${request.nextUrl.origin}/api/views/${slug}`, {
+        const apiUrl = `${request.nextUrl.origin}/api/views/${slug}`
+        console.log(`Attempting to fetch: ${apiUrl}`)
+
+        fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'User-Agent': 'Middleware/1.0',
           },
-        }).catch((error) => {
-          console.error('Middleware: Failed to increment views:', error)
         })
+          .then((response) => {
+            console.log(`API response status: ${response.status}`)
+            if (!response.ok) {
+              console.error(`API error: ${response.status} ${response.statusText}`)
+            }
+          })
+          .catch((error) => {
+            console.error('Middleware: Failed to increment views:', error)
+          })
 
-        // 쿠키 설정 (1시간 유효)
         const response = NextResponse.next()
         response.cookies.set(viewedKey, 'true', {
           maxAge: 60 * 60, // 1시간
@@ -47,6 +55,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/posts/:path*', // 포스트 관련 경로
+    '/posts/((?!page/).+)', // 포스트 페이지만, 페이지네이션 제외
   ],
 }
