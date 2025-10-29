@@ -1,6 +1,8 @@
 /* eslint-disable jsx-a11y/anchor-is-valid */
 'use client'
 
+import { ChevronLeftIcon } from '@/components/common/atoms/ChevronLeftIcon'
+import { ChevronRightIcon } from '@/components/common/atoms/ChevronRightIcon'
 import Link from '@/components/common/atoms/Link'
 import PostContainer from '@/components/posts/organisms/PostContainer'
 import siteMetadata from '@/data/siteMetadata'
@@ -29,35 +31,108 @@ function Pagination({ totalPages, currentPage }: PaginationProps) {
   const basePath = pathname.split('/')[1]
   const prevPage = currentPage - 1 > 0
   const nextPage = currentPage + 1 <= totalPages
-  const author = allAuthors.find((p) => p.slug === 'default') as Authors
+
+  //
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = []
+    const showPages = 5
+    const sidePages = Math.floor(showPages / 2)
+
+    if (totalPages <= showPages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      let start = Math.max(1, currentPage - sidePages)
+      let end = Math.min(totalPages, currentPage + sidePages)
+
+      if (currentPage <= sidePages + 1) {
+        end = showPages
+      }
+      if (currentPage >= totalPages - sidePages) {
+        start = totalPages - showPages + 1
+      }
+
+      if (start > 1) {
+        pages.push(1)
+        if (start > 2) pages.push('...')
+      }
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i)
+      }
+
+      if (end < totalPages) {
+        if (end < totalPages - 1) pages.push('...')
+        pages.push(totalPages)
+      }
+    }
+
+    return pages
+  }
+
   return (
     <div className="space-y-2 pb-8 pt-6 md:space-y-5">
-      <nav className="flex justify-between">
-        {!prevPage && (
-          <button className="cursor-auto disabled:opacity-50" disabled={!prevPage}>
-            Previous
-          </button>
-        )}
-        {prevPage && (
+      <nav className="flex justify-center items-center gap-2">
+        {prevPage ? (
           <Link
             href={currentPage - 1 === 1 ? `/${basePath}/` : `/${basePath}/page/${currentPage - 1}`}
             rel="prev"
+            className="text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 py-2 mt-0.5"
           >
-            Previous
+            <ChevronLeftIcon className="size-4" />
           </Link>
+        ) : (
+          <div className="py-2 mt-0.5 text-gray-300 dark:text-gray-600">
+            <ChevronLeftIcon className="size-4" />
+          </div>
         )}
-        <span>
-          {currentPage} of {totalPages}
-        </span>
-        {!nextPage && (
-          <button className="cursor-auto disabled:opacity-50" disabled={!nextPage}>
-            Next
-          </button>
-        )}
-        {nextPage && (
-          <Link href={`/${basePath}/page/${currentPage + 1}`} rel="next">
-            Next
+
+        {getPageNumbers().map((page, index) => {
+          if (page === '...') {
+            return (
+              <span
+                key={`ellipsis-${index}`}
+                className="px-3 py-2 text-sm font-medium text-gray-500"
+              >
+                ...
+              </span>
+            )
+          }
+
+          const isCurrentPage = page === currentPage
+          const href = page === 1 ? `/${basePath}/` : `/${basePath}/page/${page}`
+
+          return isCurrentPage ? (
+            <span
+              key={page}
+              className="px-3 py-2 text-sm font-medium bg-primary-600 text-white rounded-md dark:bg-primary-400 dark:text-gray-900"
+            >
+              {page}
+            </span>
+          ) : (
+            <Link
+              key={page}
+              href={href}
+              className="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800 rounded-md transition-colors"
+            >
+              {page}
+            </Link>
+          )
+        })}
+
+        {nextPage ? (
+          <Link
+            href={`/${basePath}/page/${currentPage + 1}`}
+            rel="next"
+            className="text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 py-2 mt-0.5"
+          >
+            <ChevronRightIcon className="size-4" />
           </Link>
+        ) : (
+          <div className="py-2 mt-0.5 text-gray-300 dark:text-gray-600">
+            <ChevronRightIcon className="size-4" />
+          </div>
         )}
       </nav>
     </div>
