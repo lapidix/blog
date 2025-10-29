@@ -15,7 +15,13 @@ const TrendingPostContainer = ({
   return (
     <Fragment>
       <div className="space-y-2 pb-2 pt-6 xl:mt-6 md:space-y-5">
-        <div className="inline-block">
+        {/* sm 이하에서는 일반 h1 */}
+        <h1 className="block md:hidden text-3xl font-extrabold leading-9 tracking-tight text-gray-900 dark:text-gray-100 sm:text-4xl sm:leading-10">
+          Trending Posts
+        </h1>
+
+        {/* md 이상에서는 RoughNotation 적용 */}
+        <div className="hidden md:inline-block">
           <RoughNotation type="underline" show color="#1d4ed8">
             <h1 className="text-3xl font-extrabold leading-9 tracking-tight text-gray-900 dark:text-gray-100 sm:text-4xl sm:leading-10 md:text-5xl md:leading-14">
               Trending Posts
