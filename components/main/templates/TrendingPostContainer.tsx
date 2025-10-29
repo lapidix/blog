@@ -2,8 +2,9 @@ import NavigationButton from '@/components/common/molecules/NavigationButton'
 import { Authors, Blog } from 'contentlayer/generated'
 import { CoreContent } from 'pliny/utils/contentlayer.js'
 import { Fragment } from 'react'
+import { RoughNotation } from 'react-rough-notation'
 import MainPostCard from '../organisms/MainPostCard'
-const MAX_DISPLAY = 3
+const MAX_DISPLAY = 4
 const TrendingPostContainer = ({
   posts,
   author,
@@ -13,10 +14,14 @@ const TrendingPostContainer = ({
 }) => {
   return (
     <Fragment>
-      <div className="space-y-2 pb-2 pt-6 xl:mt-6 md:space-y-5  ">
-        <h1 className="text-3xl font-extrabold leading-9 tracking-tight text-gray-900 dark:text-gray-100 sm:text-4xl sm:leading-10 md:text-6xl md:leading-14">
-          Trending Posts
-        </h1>
+      <div className="space-y-2 pb-2 pt-6 xl:mt-6 md:space-y-5">
+        <div className="inline-block">
+          <RoughNotation type="underline" show color="#1d4ed8">
+            <h1 className="text-3xl font-extrabold leading-9 tracking-tight text-gray-900 dark:text-gray-100 sm:text-4xl sm:leading-10 md:text-5xl md:leading-14">
+              Trending Posts
+            </h1>
+          </RoughNotation>
+        </div>
       </div>
 
       <ul
@@ -25,11 +30,16 @@ const TrendingPostContainer = ({
         style={{ containIntrinsicSize: '0 500px' }}
       >
         {!posts.length && 'No posts found.'}
-        {posts.slice(0, MAX_DISPLAY).map((post) => {
+        {posts.map((post, index) => {
           const { slug } = post
 
+          if (index >= 4) return null // 최대 4개까지만
+
+          // 4번째 포스트(index 3)는 xl에서만 숨김
+          const className = index === 3 ? 'hidden xl:hidden lg:block md:block sm:block' : ''
+
           return (
-            <li key={slug}>
+            <li key={slug} className={className}>
               <MainPostCard post={post} author={author} />
             </li>
           )
