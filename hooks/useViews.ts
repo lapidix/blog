@@ -48,7 +48,8 @@ export function useViews(slug: string) {
   // 컴포넌트 마운트 시 조회수 가져오기
   useEffect(() => {
     fetchViews()
-  }, [slug])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]) // fetchViews는 내부에서 slug를 사용하기 때문에 의존성에 slug만 포함
 
   return { views, incrementViews, isLoading }
 }

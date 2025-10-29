@@ -3,11 +3,15 @@ import { allBlogs, Blog } from 'contentlayer/generated'
 import { NextResponse } from 'next/server'
 import { allCoreContent, CoreContent, sortPosts } from 'pliny/utils/contentlayer.js'
 
+// API 라우트에 캐싱 설정 추가 (2시간)
+export const revalidate = 7200
+
 interface PostWithViews extends CoreContent<Blog> {
   views: number
 }
 
 export async function GET() {
+  // 캐싱 설정이 적용된 API 라우트
   try {
     console.log('Fetching trending posts from KV store...')
 

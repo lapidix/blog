@@ -8,14 +8,10 @@ interface PostWithViews extends CoreContent<Blog> {
 
 async function getTrendingPosts(): Promise<PostWithViews[]> {
   try {
-    // 서버 사이드에서는 절대 URL이 아닌 상대 경로 사용
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-
-    const response = await fetch(`${baseUrl}/api/trending-posts`, {
-      // 서버 사이드 렌더링에서 캐시 방지
-      cache: 'no-store',
+    // 상대 경로 사용 - Next.js가 자동으로 적절한 URL로 변환함
+    const response = await fetch(`/api/trending-posts`, {
+      // ISR 방식으로 변경하여 정적 생성 가능
+      next: { revalidate: 7200 },
     })
 
     if (!response.ok) {
