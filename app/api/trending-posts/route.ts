@@ -13,31 +13,25 @@ interface PostWithViews extends CoreContent<Blog> {
 export async function GET() {
   // 캐싱 설정이 적용된 API 라우트
   try {
-    console.log('Fetching trending posts from KV store...')
-
     // Sorted Set에서 상위 4개 포스트 가져오기 (높은 점수부터)
     const trendingSlugs = await kv.zrange('trending:posts', 0, 4, {
       rev: true,
       withScores: true,
     })
 
-    console.log('Trending slugs from KV:', trendingSlugs)
-
     // 모든 포스트 데이터
     const posts = allCoreContent(sortPosts(allBlogs))
 
     if (!trendingSlugs || trendingSlugs.length === 0) {
-      console.log('No trending posts found, returning latest posts')
       // 트렌딩 포스트가 없으면 최신 4개 포스트 반환
       const latestPosts = posts.slice(0, 4).map((post) => ({
         ...post,
         views: 0,
       }))
-      console.log('Returning latest posts:', latestPosts.length)
+
       return NextResponse.json(latestPosts)
     }
 
-    // 인기 포스트 데이터 매핑
     const trendingPosts: PostWithViews[] = []
 
     for (let i = 0; i < trendingSlugs.length; i += 2) {
@@ -53,7 +47,6 @@ export async function GET() {
       }
     }
 
-    // 4개 미만이면 일반 포스트로 채우기
     if (trendingPosts.length < 4) {
       const usedSlugs = new Set(trendingPosts.map((p) => p.slug))
       const remainingPosts = posts
@@ -69,8 +62,6 @@ export async function GET() {
 
     return NextResponse.json(trendingPosts)
   } catch (error) {
-    console.error('Error getting popular posts:', error)
-
     // Fallback: 기존 방식으로 조회
     try {
       const posts = allCoreContent(sortPosts(allBlogs))
@@ -91,7 +82,6 @@ export async function GET() {
 
       return NextResponse.json(trendingPosts)
     } catch (fallbackError) {
-      console.error('Fallback error:', fallbackError)
       return NextResponse.json({ error: 'Failed to get popular posts' }, { status: 500 })
     }
   }

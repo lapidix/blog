@@ -31,7 +31,7 @@ interface LayoutProps {
 // 서버에서 조회수 가져오기
 async function getViewCount(slug: string): Promise<number> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/views/${slug}`, {
+    const response = await fetch(`/api/views/${slug}`, {
       next: { revalidate: 7200 },
     })
     if (!response.ok) return 0

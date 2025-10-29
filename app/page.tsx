@@ -8,9 +8,7 @@ interface PostWithViews extends CoreContent<Blog> {
 
 async function getTrendingPosts(): Promise<PostWithViews[]> {
   try {
-    // 상대 경로 사용 - Next.js가 자동으로 적절한 URL로 변환함
     const response = await fetch(`/api/trending-posts`, {
-      // ISR 방식으로 변경하여 정적 생성 가능
       next: { revalidate: 7200 },
     })
 
@@ -20,11 +18,8 @@ async function getTrendingPosts(): Promise<PostWithViews[]> {
     }
 
     const trendingPosts = (await response.json()) as PostWithViews[]
-    console.log('Fetched trending posts:', trendingPosts.length)
     return trendingPosts
   } catch (error) {
-    console.error('Error getting trending posts:', error)
-    // 에러 발생 시 최신 포스트 4개를 fallback으로 반환
     const sortedPosts = sortPosts(allBlogs)
     const posts = allCoreContent(sortedPosts)
     return posts.slice(0, 4).map((post) => ({ ...post, views: 0 }))
