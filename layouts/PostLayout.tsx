@@ -2,9 +2,8 @@ import Image from '@/components/common/atoms/Image'
 import Link from '@/components/common/atoms/Link'
 import PageTitle from '@/components/common/atoms/PageTitle'
 import SectionContainer from '@/components/common/atoms/SectionContainer'
-import { ReadingTime } from '@/components/posts/atoms/ReadingTime'
 import CustomTOC from '@/components/posts/molecules/CustomTOC'
-import ViewTracker from '@/components/posts/molecules/ViewTracker'
+import PostMetrics from '@/components/posts/molecules/PostMetrics'
 import Comments from '@/components/posts/organisms/Comments'
 import ScrollTopAndComment from '@/components/posts/organisms/ScrollTopAndComment'
 
@@ -29,12 +28,37 @@ interface LayoutProps {
   children: ReactNode
 }
 
-export default function PostLayout({ content, authorDetails, next, prev, children }: LayoutProps) {
+// 서버에서 조회수 가져오기
+async function getViewCount(slug: string): Promise<number> {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/views/${slug}`, {
+      next: { revalidate: 7200 },
+    })
+    if (!response.ok) return 0
+    const data = await response.json()
+    return data.views || 0
+  } catch (error) {
+    console.error('Failed to fetch view count:', error)
+    return 0
+  }
+}
+
+export default async function PostLayout({
+  content,
+  authorDetails,
+  next,
+  prev,
+  children,
+}: LayoutProps) {
   const { filePath, path, slug, date, title, tags, summary, images, readingTime } = content
   const basePath = path.split('/')[0]
 
+  // 서버에서 조회수 가져오기
+  const viewCount = await getViewCount(slug)
+
   return (
     <SectionContainer>
+      {/* <ViewRecorder slug={slug} /> */}
       <ScrollTopAndComment />
       <article>
         <div className="xl:divide-y xl:divide-gray-200 xl:dark:divide-gray-700">
@@ -91,10 +115,11 @@ export default function PostLayout({ content, authorDetails, next, prev, childre
                     </li>
                   ))}
                 </ul>
-                <div className="flex xl:hidden w-full items-center justify-center gap-4 pt-6">
-                  {readingTime && <ReadingTime readingTime={readingTime} />}
-                  {/* <ViewTracker slug={slug} /> */}
-                </div>
+                <PostMetrics
+                  readingTime={readingTime}
+                  viewCount={viewCount}
+                  className="flex xl:hidden w-full items-center justify-center gap-3 pt-6"
+                />
               </dd>
             </dl>
             <div className="divide-y divide-gray-200 dark:divide-gray-700 xl:col-span-3 xl:row-span-2 xl:pb-0">
@@ -111,10 +136,11 @@ export default function PostLayout({ content, authorDetails, next, prev, childre
             </div>
             <footer>
               <div className="divide-gray-200 text-sm font-medium leading-5 dark:divide-gray-700 xl:col-start-1 xl:row-start-2 xl:divide-y">
-                <div className="hidden xl:flex w-full items-start justify-center flex-col gap-4 py-6 px-1">
-                  {readingTime && <ReadingTime readingTime={readingTime} />}
-                  <ViewTracker slug={slug} />
-                </div>
+                <PostMetrics
+                  className="hidden xl:flex w-full items-start justify-center flex-col gap-4 py-4 px-1"
+                  readingTime={readingTime}
+                  viewCount={viewCount}
+                />
                 {tags && (
                   <div className="py-4 xl:py-8">
                     <h2 className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">

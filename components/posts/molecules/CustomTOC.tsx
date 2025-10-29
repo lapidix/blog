@@ -42,7 +42,7 @@ const CustomTOC: React.FC<CustomTOCProps> = ({ toc, exclude = '', maxDepth = 3 }
       <ul className="pt-2 space-y-1 text-sm">
         {filteredToc.map((heading) => (
           <li
-            key={heading.url}
+            key={`${heading.url}-${heading.value}`}
             className={`toc-item ${heading.depth === 1 ? 'font-medium' : 'font-normal'}`}
             style={{ paddingLeft: `${(heading.depth - 1) * 0.75}rem` }}
           >
