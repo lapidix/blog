@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-export function middleware(request: NextRequest) {
-  // 포스트 페이지 방문 시 조회수 증가
+export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith('/posts/')) {
     const pathname = request.nextUrl.pathname
 
@@ -19,25 +18,22 @@ export function middleware(request: NextRequest) {
       if (!hasViewed) {
         console.log(`Middleware: Incrementing views for ${slug}`)
 
-        const apiUrl = `${request.nextUrl.origin}/api/views/${slug}`
-        console.log(`Attempting to fetch: ${apiUrl}`)
+        // 직접 KV에서 조회수 증가
+        console.log(`Incrementing views directly in KV for: ${slug}`)
 
-        fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'Middleware/1.0',
-          },
-        })
-          .then((response) => {
-            console.log(`API response status: ${response.status}`)
-            if (!response.ok) {
-              console.error(`API error: ${response.status} ${response.statusText}`)
-            }
-          })
-          .catch((error) => {
-            console.error('Middleware: Failed to increment views:', error)
-          })
+        try {
+          const { kv } = await import('@vercel/kv')
+
+          // 1. 개별 조회수 증가
+          const views = await kv.incr(`views:${slug}`)
+          console.log(`New view count for ${slug}: ${views}`)
+
+          // 2. Sorted Set에 조회수 업데이트 (score가 조회수)
+          await kv.zadd('trending:posts', { score: views, member: slug })
+          console.log(`Updated trending posts for ${slug}`)
+        } catch (error) {
+          console.error('Middleware: Failed to increment views in KV:', error)
+        }
 
         const response = NextResponse.next()
         response.cookies.set(viewedKey, 'true', {
