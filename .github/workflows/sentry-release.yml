@@ -48,9 +48,30 @@ jobs:
         run: |
           if [ -n "${{ secrets.SENTRY_AUTH_TOKEN }}" ]; then
             echo "has_token=true" >> $GITHUB_OUTPUT
+            echo "Token format check (first 4 chars): ${SENTRY_AUTH_TOKEN:0:4}"
+            echo "Token length: ${#SENTRY_AUTH_TOKEN}"
           else
             echo "has_token=false" >> $GITHUB_OUTPUT
+            echo "No token found!"
           fi
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      - name: Test Sentry CLI
+        if: github.ref == 'refs/heads/main' && steps.check-sentry-token.outputs.has_token == 'true'
+        run: |
+          # Sentry CLI 설치
+          npm install -g @sentry/cli
+          # 조직 목록 확인 시도
+          echo "Testing Sentry CLI with organization list:"
+          sentry-cli --log-level=debug orgs list
+          # 프로젝트 목록 확인 시도
+          echo "Testing Sentry CLI with project list:"
+          sentry-cli --log-level=debug projects list
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG || 'lapidix' }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT || 'blog' }}
 
       - name: Create Sentry release
         uses: getsentry/action-release@v1
