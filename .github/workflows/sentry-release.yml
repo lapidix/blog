@@ -1,86 +1,26 @@
 name: Sentry Release
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  # Vercel 배포 완료 후에만 실행
+  deployment_status:
 
 jobs:
-  build-and-release:
+  sentry-release:
     runs-on: ubuntu-latest
+    # Vercel 배포가 성공했을 때만 실행
+    if: github.event.deployment_status.state == 'success' && github.event.deployment_status.environment == 'Production'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          # 전체 git 히스토리를 가져와서 릴리스 정보 생성
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'yarn'
-
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
-
-      - name: Build application
-        run: yarn build
-        env:
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN || env.SENTRY_DSN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_RELEASE: ${{ github.sha }}
-
-      - name: Debug Sentry environment variables
-        if: github.ref == 'refs/heads/main'
-        run: |
-          echo "SENTRY_ORG: ${{ secrets.SENTRY_ORG || 'lapidix' }}"
-          echo "SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT || 'blog' }}"
-          echo "Auth token exists: ${{ secrets.SENTRY_AUTH_TOKEN != '' }}"
-
-      - name: Check Sentry Auth Token
-        if: github.ref == 'refs/heads/main'
-        id: check-sentry-token
-        run: |
-          if [ -n "${{ secrets.SENTRY_AUTH_TOKEN }}" ]; then
-            echo "has_token=true" >> $GITHUB_OUTPUT
-            echo "Token format check (first 4 chars): ${SENTRY_AUTH_TOKEN:0:4}"
-            echo "Token length: ${#SENTRY_AUTH_TOKEN}"
-          else
-            echo "has_token=false" >> $GITHUB_OUTPUT
-            echo "No token found!"
-          fi
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-
-      - name: Test Sentry CLI
-        if: github.ref == 'refs/heads/main' && steps.check-sentry-token.outputs.has_token == 'true'
-        run: |
-          # Sentry CLI 설치
-          npm install -g @sentry/cli
-          # 조직 목록 확인 시도
-          echo "Testing Sentry CLI with organization list:"
-          sentry-cli --log-level=debug orgs list
-          # 프로젝트 목록 확인 시도
-          echo "Testing Sentry CLI with project list:"
-          sentry-cli --log-level=debug projects list
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG || 'lapidix' }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT || 'blog' }}
 
       - name: Create Sentry release
         uses: getsentry/action-release@v1
-        if: github.ref == 'refs/heads/main' && steps.check-sentry-token.outputs.has_token == 'true'
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG || 'lapidix' }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT || 'blog' }}
         with:
           environment: production
-          sourcemaps: '.next'
-          url_prefix: '~/_next'
+          version: ${{ github.sha }}
+          finalize: true
