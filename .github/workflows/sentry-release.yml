@@ -35,13 +35,20 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_RELEASE: ${{ github.sha }}
 
+      - name: Debug Sentry environment variables
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "SENTRY_ORG: ${{ secrets.SENTRY_ORG || 'lapidix' }}"
+          echo "SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT || 'blog' }}"
+          echo "Auth token exists: ${{ secrets.SENTRY_AUTH_TOKEN != '' }}"
+
       - name: Create Sentry release
         uses: getsentry/action-release@v1
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && secrets.SENTRY_AUTH_TOKEN != ''
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG || 'lapidix' }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT || 'blog' }}
         with:
           environment: production
           sourcemaps: '.next'
