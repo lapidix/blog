@@ -3,7 +3,7 @@ import * as Sentry from '@sentry/nextjs'
 /**
  * 수동으로 에러를 Sentry에 전송
  */
-export function captureError(error: Error, context?: Record<string, any>) {
+export function captureError(error: Error, context?: Record<string, unknown>) {
   Sentry.captureException(error, {
     tags: {
       section: 'blog',
@@ -34,8 +34,10 @@ export function setTag(key: string, value: string) {
 }
 
 /**
- * 성능 추적을 위한 트랜잭션 생성
+ * 성능 추적을 위한 스팬 생성 (Sentry v8 방식)
  */
-export function startTransaction(name: string, op: string) {
-  return Sentry.startTransaction({ name, op })
+export function withSentrySpan<T>(name: string, op: string, fn: () => T): T {
+  return Sentry.withActiveSpan(null, () => {
+    return Sentry.startSpan({ name, op }, fn)
+  })
 }

@@ -150,6 +150,9 @@ module.exports = withSentryConfig(module.exports, {
   org: 'lapidix',
   project: 'blog',
 
+  // Auth token for source map upload (only in CI)
+  authToken: process.env.CI ? process.env.SENTRY_AUTH_TOKEN : undefined,
+
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
 
@@ -167,6 +170,14 @@ module.exports = withSentryConfig(module.exports, {
 
   // Automatically tree-shake Sentry logger statements to reduce bundle size
   disableLogger: true,
+
+  // Source maps configuration
+  sourcemaps: {
+    // Only upload source maps in CI
+    disable: !process.env.CI,
+    // Delete source maps after upload to keep them private
+    deleteSourcemapsAfterUpload: true,
+  },
 
   // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
   // See the following for more information:
