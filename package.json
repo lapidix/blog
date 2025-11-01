@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@next/bundle-analyzer": "14.2.5",
+    "@sentry/nextjs": "^8.33.1",
     "@tailwindcss/forms": "^0.5.4",
     "@tailwindcss/typography": "^0.5.9",
     "@vercel/analytics": "^1.1.1",
@@ -69,13 +70,6 @@
     "typescript": "^5.5.4"
   },
   "resolutions": {
-    "@opentelemetry/api": "1.4.1",
-    "@opentelemetry/core": "1.13.0",
-    "@opentelemetry/exporter-trace-otlp-grpc": "0.39.1",
-    "@opentelemetry/resources": "1.13.0",
-    "@opentelemetry/sdk-trace-base": "1.13.0",
-    "@opentelemetry/sdk-trace-node": "1.13.0",
-    "@opentelemetry/semantic-conventions": "1.13.0",
     "kbar": "0.1.0-beta.44"
   },
   "lint-staged": {

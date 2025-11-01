@@ -33,6 +33,14 @@ export async function middleware(request: NextRequest) {
           console.log(`Updated trending posts for ${slug}`)
         } catch (error) {
           console.error('Middleware: Failed to increment views in KV:', error)
+
+          // Sentry에 에러 전송
+          const { captureError } = await import('./lib/sentry-utils')
+          captureError(error as Error, {
+            slug,
+            action: 'increment_views',
+            location: 'middleware',
+          })
         }
 
         const response = NextResponse.next()

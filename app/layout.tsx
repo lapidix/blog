@@ -1,5 +1,5 @@
+import * as Sentry from '@sentry/nextjs'
 import 'css/tailwind.css'
-
 import { Space_Grotesk } from 'next/font/google'
 // import { Analytics, AnalyticsConfig } from 'pliny/analytics'
 import GoogleAnalytics from '@/components/common/atoms/GoogleAnalytics'
@@ -69,6 +69,9 @@ export const metadata: Metadata = {
     title: siteMetadata.title,
     card: 'summary_large_image',
     images: [siteMetadata.socialBanner],
+  },
+  other: {
+    ...Sentry.getTraceData(),
   },
 }
 
