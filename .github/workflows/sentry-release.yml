@@ -42,9 +42,19 @@ jobs:
           echo "SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT || 'blog' }}"
           echo "Auth token exists: ${{ secrets.SENTRY_AUTH_TOKEN != '' }}"
 
+      - name: Check Sentry Auth Token
+        if: github.ref == 'refs/heads/main'
+        id: check-sentry-token
+        run: |
+          if [ -n "${{ secrets.SENTRY_AUTH_TOKEN }}" ]; then
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_token=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create Sentry release
         uses: getsentry/action-release@v1
-        if: github.ref == 'refs/heads/main' && secrets.SENTRY_AUTH_TOKEN != ''
+        if: github.ref == 'refs/heads/main' && steps.check-sentry-token.outputs.has_token == 'true'
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG || 'lapidix' }}
