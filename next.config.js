@@ -11,7 +11,7 @@ const ContentSecurityPolicy = `
   style-src 'self' 'unsafe-inline' *.googleapis.com;
   img-src * blob: data:;
   media-src *.s3.amazonaws.com;
-  connect-src 'self' *.google-analytics.com *.googletagmanager.com *.gstatic.com vitals.vercel-insights.com vercel.com *.vercel-insights.com *.vercel.app;
+  connect-src 'self' *.google-analytics.com *.googletagmanager.com *.gstatic.com vitals.vercel-insights.com vercel.com *.vercel-insights.com *.vercel.app *.sentry.io;
   font-src 'self' *.gstatic.com *.googleapis.com;
   frame-src giscus.app *.google.com
 `

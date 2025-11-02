@@ -4,6 +4,11 @@
 
 import * as Sentry from '@sentry/nextjs'
 
+console.log('Sentry Server Init:', {
+  dsn: process.env.SENTRY_DSN ? 'SET' : 'NOT SET',
+  environment: process.env.NODE_ENV,
+})
+
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
 
@@ -21,10 +26,9 @@ Sentry.init({
 
   // 에러 필터링 (불필요한 에러 제외)
   beforeSend(event) {
-    // 개발 환경에서는 콘솔에만 출력
+    // 개발 환경에서도 콘솔에 출력하지만 Sentry로도 전송
     if (process.env.NODE_ENV === 'development') {
-      console.error('Sentry Event:', event)
-      return null
+      console.error('Sentry Server Event:', event)
     }
     return event
   },

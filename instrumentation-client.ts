@@ -4,8 +4,13 @@
 
 import * as Sentry from '@sentry/nextjs'
 
+console.log('Sentry Client Init:', {
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN ? 'SET' : 'NOT SET',
+  environment: process.env.NODE_ENV,
+})
+
 Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN,
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
   // 클라이언트 성능 추적 샘플링 (프로덕션에서 낮게)
   tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
@@ -23,7 +28,6 @@ Sentry.init({
   beforeSend(event) {
     if (process.env.NODE_ENV === 'development') {
       console.error('Sentry Client Event:', event)
-      return null
     }
     return event
   },

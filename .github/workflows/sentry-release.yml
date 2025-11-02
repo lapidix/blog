@@ -1,18 +1,21 @@
 name: Sentry Release
 
 on:
-  # Vercel 배포 완료 후에만 실행
-  deployment_status:
+  push:
+    branches: [main]
 
 jobs:
   sentry-release:
     runs-on: ubuntu-latest
-    # Vercel 배포가 성공했을 때만 실행
-    if: github.event.deployment_status.state == 'success' && github.event.deployment_status.environment == 'Production'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Wait for deployment
+        run: |
+          echo "Waiting 90 seconds for deployment to complete..."
+          sleep 90
 
       - name: Create Sentry release
         uses: getsentry/action-release@v1
