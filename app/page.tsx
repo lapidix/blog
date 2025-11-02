@@ -1,8 +1,15 @@
 import MainPage from '@/components/main/pages/MainPage'
-import { allAuthors, allBlogs, allReflections, Authors, PostType } from 'contentlayer/generated'
+import {
+  allAuthors,
+  allBlogs,
+  allReflections,
+  Authors,
+  Blog,
+  Reflection,
+} from 'contentlayer/generated'
 import { allCoreContent, CoreContent, sortPosts } from 'pliny/utils/contentlayer.js'
 
-interface PostWithViews extends CoreContent<PostType> {
+interface PostWithViews extends CoreContent<Blog | Reflection> {
   views: number
 }
 

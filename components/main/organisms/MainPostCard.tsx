@@ -1,4 +1,4 @@
-import { Authors, PostType } from 'contentlayer/generated'
+import { Authors, Blog, Reflection } from 'contentlayer/generated'
 import { CoreContent } from 'pliny/utils/contentlayer.js'
 
 import { PostSummaryTextElement } from '@/components/common/atoms/PostTextElement'
@@ -8,7 +8,7 @@ import PostAuthorSection from '../../common/organisms/PostAuthorSection'
 import Tag from '../../tags/Tag'
 
 interface MainPostCardProps {
-  post: CoreContent<PostType>
+  post: CoreContent<Blog | Reflection>
   author: Authors
 }
 

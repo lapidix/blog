@@ -1,4 +1,4 @@
-import { Authors, PostType } from 'contentlayer/generated'
+import { Authors, Blog, Reflection } from 'contentlayer/generated'
 import { CoreContent } from 'pliny/utils/contentlayer.js'
 import { Fragment } from 'react'
 import IntroduceContainer from '../templates/IntroduceContainer'
@@ -8,7 +8,7 @@ export default function MainPage({
   posts,
   author,
 }: {
-  posts: CoreContent<PostType>[]
+  posts: CoreContent<Blog | Reflection>[]
   author: Authors
 }) {
   return (
