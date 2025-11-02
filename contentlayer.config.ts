@@ -78,6 +78,8 @@ function createSearchIndex(allBlogs) {
   }
 }
 
+export type PostType = typeof Blog | typeof Reflection
+
 export const Blog = defineDocumentType(() => ({
   name: 'Blog',
   filePathPattern: 'posts/*.mdx',
