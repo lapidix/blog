@@ -1,15 +1,17 @@
 import 'css/prism.css'
 import 'katex/dist/katex.css'
 
-import PageTitle from '@/components/common/atoms/PageTitle'
 import { components } from '@/components/posts/organisms/MDXComponents'
 import siteMetadata from '@/data/siteMetadata'
 import PostBanner from '@/layouts/PostBanner'
 import PostLayout from '@/layouts/PostLayout'
 import PostSimple from '@/layouts/PostSimple'
+import * as Sentry from '@sentry/nextjs'
 import type { Authors, Blog } from 'contentlayer/generated'
 import { allAuthors, allBlogs } from 'contentlayer/generated'
 import { Metadata } from 'next'
+import { headers } from 'next/headers'
+import { notFound } from 'next/navigation'
 import { MDXLayoutRenderer } from 'pliny/mdx-components'
 import { allCoreContent, coreContent, sortPosts } from 'pliny/utils/contentlayer.js'
 
@@ -29,7 +31,27 @@ export async function generateMetadata({
   const post = allBlogs.find((p) => p.slug === slug)
 
   if (!post) {
-    throw new Error('Post not found')
+    const headersList = headers()
+    const referer = headersList.get('referer') || 'direct'
+
+    Sentry.captureException(new Error('Post not found in metadata generation'), {
+      tags: {
+        error_type: 'post_not_found',
+        page_type: 'blog_post',
+        location: 'generateMetadata',
+      },
+      contexts: {
+        post: {
+          slug,
+          path: `/posts/${slug}`,
+          referer,
+        },
+      },
+      level: 'warning',
+    })
+    return {
+      title: 'Post Not Found',
+    }
   }
 
   const authorList = post.authors || ['default']
@@ -105,16 +127,20 @@ export default async function Page({ params }: { params: { slug: string[]; local
   const sortedCoreContents = allCoreContent(sortPosts(allBlogs))
   const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
   if (postIndex === -1) {
-    return (
-      <div className="mt-24 text-center">
-        <PageTitle>
-          Under Construction{' '}
-          <span role="img" aria-label="roadwork sign">
-            🚧
-          </span>
-        </PageTitle>
-      </div>
-    )
+    Sentry.captureException(new Error('Blog post not found'), {
+      tags: {
+        error_type: 'post_not_found',
+        page_type: 'blog_post',
+      },
+      contexts: {
+        post: {
+          slug,
+          path: `/posts/${slug}`,
+        },
+      },
+      level: 'warning',
+    })
+    notFound()
   }
 
   const prev = sortedCoreContents[postIndex + 1]

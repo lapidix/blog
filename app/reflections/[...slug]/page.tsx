@@ -7,9 +7,11 @@ import siteMetadata from '@/data/siteMetadata'
 import PostBanner from '@/layouts/PostBanner'
 import PostLayout from '@/layouts/PostLayout'
 import PostSimple from '@/layouts/PostSimple'
+import * as Sentry from '@sentry/nextjs'
 import type { Authors, Reflection } from 'contentlayer/generated'
 import { allAuthors, allReflections } from 'contentlayer/generated'
 import { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { MDXLayoutRenderer } from 'pliny/mdx-components'
 import { allCoreContent, coreContent, sortPosts } from 'pliny/utils/contentlayer.js'
 
@@ -29,7 +31,26 @@ export async function generateMetadata({
   const post = allReflections.find((p) => p.slug === slug)
 
   if (!post) {
-    throw new Error('Post not found')
+    const headerList = headers()
+    const referer = headerList.get('referer') || 'direct'
+    Sentry.captureException(new Error('Reflection post not found in metadata generation'), {
+      tags: {
+        error_type: 'reflection_not_found',
+        page_type: 'reflection_post',
+        location: 'generateMetadata',
+      },
+      contexts: {
+        post: {
+          slug,
+          path: `/reflections/${slug}`,
+          referer,
+        },
+      },
+      level: 'warning',
+    })
+    return {
+      title: 'Reflection Not Found',
+    }
   }
 
   const authorList = post.authors || ['default']
