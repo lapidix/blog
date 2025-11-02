@@ -21,7 +21,7 @@ Sentry.init({
   // 개인정보 보호
   sendDefaultPii: false,
 
-  // 릴리스 버전
+  // 릴리즈 버전
   release: process.env.SENTRY_RELEASE || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA,
 
   // 클라이언트 에러 필터링

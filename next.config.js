@@ -170,8 +170,5 @@ const sentryConfig = {
   automaticVercelMonitors: true,
 }
 
-// Only apply Sentry config if we have a valid auth token
-module.exports =
-  process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_AUTH_TOKEN !== 'undefined'
-    ? withSentryConfig(module.exports, sentryConfig)
-    : module.exports
+// Always apply Sentry config, but disable features when no auth token
+module.exports = withSentryConfig(module.exports, sentryConfig)

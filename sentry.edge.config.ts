@@ -5,13 +5,23 @@
 
 import * as Sentry from '@sentry/nextjs'
 
+console.log('Sentry Edge Init:', {
+  dsn: process.env.SENTRY_DSN ? 'SET' : 'NOT SET',
+  environment: process.env.NODE_ENV,
+})
+
 Sentry.init({
-  dsn: 'https://189c349ff4e94c34b44c263b9bfd3d83@o524956.ingest.us.sentry.io/5638288',
+  dsn: process.env.SENTRY_DSN,
 
-  // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
-  tracesSampleRate: 1,
+  // 성능 추적 샘플링
+  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
 
-  // Enable sending user PII (Personally Identifiable Information)
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
-  sendDefaultPii: true,
+  // 환경 구분
+  environment: process.env.NODE_ENV,
+
+  // 개인정보 보호
+  sendDefaultPii: false,
+
+  // 릴리즈 버전
+  release: process.env.SENTRY_RELEASE || process.env.VERCEL_GIT_COMMIT_SHA,
 })
