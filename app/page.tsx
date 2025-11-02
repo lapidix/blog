@@ -1,8 +1,17 @@
 import MainPage from '@/components/main/pages/MainPage'
-import { allAuthors, allBlogs, Authors, Blog } from 'contentlayer/generated'
+import {
+  allAuthors,
+  allBlogs,
+  allReflections,
+  Authors,
+  Blog,
+  Reflection,
+} from 'contentlayer/generated'
 import { allCoreContent, CoreContent, sortPosts } from 'pliny/utils/contentlayer.js'
 
-interface PostWithViews extends CoreContent<Blog> {
+type PostType = Blog | Reflection
+
+interface PostWithViews extends CoreContent<PostType> {
   views: number
 }
 
@@ -10,13 +19,14 @@ async function getTrendingPosts(): Promise<PostWithViews[]> {
   try {
     const { kv } = await import('@vercel/kv')
 
-    // Sorted Set에서 상위 4개 포스트 가져오기 (높은 점수부터)
     const trendingSlugs = await kv.zrange('trending:posts', 0, 4, {
       rev: true,
       withScores: true,
     })
 
     const posts = allCoreContent(sortPosts(allBlogs))
+    const reflectionPosts = allCoreContent(sortPosts(allReflections))
+    const allPosts = [...posts, ...reflectionPosts]
     const trendingPosts: PostWithViews[] = []
 
     if (trendingSlugs && trendingSlugs.length > 0) {
@@ -24,7 +34,7 @@ async function getTrendingPosts(): Promise<PostWithViews[]> {
         const slug = trendingSlugs[i] as string
         const views = trendingSlugs[i + 1] as number
 
-        const post = posts.find((p) => p.slug === slug)
+        const post = allPosts.find((p) => p.slug === slug)
         if (post) {
           trendingPosts.push({
             ...post,
