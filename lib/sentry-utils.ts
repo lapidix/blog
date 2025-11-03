@@ -1,10 +1,24 @@
 import * as Sentry from '@sentry/nextjs'
 import { PostNotFoundError } from 'errors/post.error'
-import { headers } from 'next/headers'
 
-/**
- * 수동으로 에러를 Sentry에 전송
- */
+export function captureKVError(
+  error: Error,
+  action: 'increment_views' | 'get_view_count' | 'get_trending_posts',
+  context?: Record<string, unknown>
+) {
+  Sentry.captureException(error, {
+    fingerprint: ['vercel-kv-error', action],
+    tags: {
+      error_type: 'vercel_kv',
+      action,
+    },
+    contexts: {
+      kv: context || {},
+    },
+    level: 'error',
+  })
+}
+
 export function captureError(error: Error, context?: Record<string, unknown>) {
   Sentry.captureException(error, {
     tags: {
@@ -14,25 +28,21 @@ export function captureError(error: Error, context?: Record<string, unknown>) {
   })
 }
 
-/**
- * 사용자 정의 메시지 전송
- */
 export function captureMessage(message: string, level: 'info' | 'warning' | 'error' = 'info') {
   Sentry.captureMessage(message, level)
 }
 
-/**
- * 사용자 컨텍스트 설정
- */
 export function setUserContext(user: { id?: string; email?: string; username?: string }) {
   Sentry.setUser(user)
 }
 
-export function capturePostNotFound(
+export async function capturePostNotFound(
   slug: string,
   pageType: 'blog_post' | 'reflection_post',
   location?: string
 ) {
+  // Server Component에서만 사용 가능하므로 동적 import
+  const { headers } = await import('next/headers')
   const headersList = headers()
   const referer = headersList.get('referer') || 'direct'
 
@@ -52,6 +62,6 @@ export function capturePostNotFound(
         referer: error.referer,
       },
     },
-    level: 'warning',
+    level: 'error',
   })
 }

@@ -32,7 +32,7 @@ export async function generateMetadata({
   const post = allBlogs.find((p) => p.slug === slug)
 
   if (!post) {
-    capturePostNotFound(slug, 'blog_post', 'generateMetadata')
+    await capturePostNotFound(slug, 'blog_post', 'generateMetadata')
     return {
       title: 'Post Not Found',
     }

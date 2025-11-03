@@ -37,6 +37,12 @@ async function getViewCount(slug: string): Promise<number> {
     return Number(views)
   } catch (error) {
     console.error('Failed to fetch view count from KV:', error)
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { captureKVError } = await import('@/libs/sentry-utils')
+    captureKVError(error as Error, 'get_view_count', {
+      slug,
+      location: 'PostLayout',
+    })
     return 0
   }
 }

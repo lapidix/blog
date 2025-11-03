@@ -30,7 +30,7 @@ export async function generateMetadata({
   const post = allReflections.find((p) => p.slug === slug)
 
   if (!post) {
-    capturePostNotFound(slug, 'reflection_post', 'generateMetadata')
+    await capturePostNotFound(slug, 'reflection_post', 'generateMetadata')
     return {
       title: 'Reflection Not Found',
     }
@@ -106,7 +106,7 @@ export default async function Page({ params }: { params: { slug: string[]; local
   const sortedCoreContents = allCoreContent(sortPosts(allReflections))
   const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
   if (postIndex === -1) {
-    capturePostNotFound(slug, 'reflection_post')
+    await capturePostNotFound(slug, 'reflection_post')
     notFound()
   }
 

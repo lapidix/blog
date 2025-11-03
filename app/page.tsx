@@ -59,6 +59,12 @@ async function getTrendingPosts(): Promise<PostWithViews[]> {
     return trendingPosts
   } catch (error) {
     console.error('Failed to fetch trending posts from KV:', error)
+
+    const { captureKVError } = await import('@/libs/sentry-utils')
+    captureKVError(error as Error, 'get_trending_posts', {
+      location: 'HomePage',
+    })
+
     // 오류 발생 시 최신 글 4개 반환
     const sortedPosts = sortPosts(allBlogs)
     const posts = allCoreContent(sortedPosts)

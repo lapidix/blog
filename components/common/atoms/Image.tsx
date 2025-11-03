@@ -1,4 +1,3 @@
-import { captureError } from '@/libs/sentry-utils'
 import NextImage, { ImageProps as NextImageProps } from 'next/image'
 
 type ImageProps = NextImageProps & {
@@ -26,10 +25,22 @@ const Image = ({
       {...rest}
       {...(useFill && { fill: true, style: { objectFit: 'cover', ...rest.style } })}
       onError={(e) => {
-        captureError(new Error('Image loading failed'), {
-          src,
-          alt,
-          error: e,
+        const error = new Error('Image loading failed')
+        const { captureException } = require('@sentry/nextjs')
+
+        captureException(error, {
+          fingerprint: ['image-loading-failed'],
+          tags: {
+            error_type: 'image_loading',
+            component: 'Image',
+          },
+          contexts: {
+            image: {
+              src: typeof src === 'string' ? src : 'object',
+              alt,
+            },
+          },
+          level: 'warning',
         })
       }}
     />
