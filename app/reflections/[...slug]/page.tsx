@@ -1,17 +1,16 @@
 import 'css/prism.css'
 import 'katex/dist/katex.css'
 
-import PageTitle from '@/components/common/atoms/PageTitle'
 import { components } from '@/components/posts/organisms/MDXComponents'
 import siteMetadata from '@/data/siteMetadata'
 import PostBanner from '@/layouts/PostBanner'
 import PostLayout from '@/layouts/PostLayout'
 import PostSimple from '@/layouts/PostSimple'
-import * as Sentry from '@sentry/nextjs'
+import { capturePostNotFound } from '@/libs/sentry-utils'
 import type { Authors, Reflection } from 'contentlayer/generated'
 import { allAuthors, allReflections } from 'contentlayer/generated'
 import { Metadata } from 'next'
-import { headers } from 'next/headers'
+import { notFound } from 'next/navigation'
 import { MDXLayoutRenderer } from 'pliny/mdx-components'
 import { allCoreContent, coreContent, sortPosts } from 'pliny/utils/contentlayer.js'
 
@@ -31,23 +30,7 @@ export async function generateMetadata({
   const post = allReflections.find((p) => p.slug === slug)
 
   if (!post) {
-    const headerList = headers()
-    const referer = headerList.get('referer') || 'direct'
-    Sentry.captureException(new Error('Reflection post not found in metadata generation'), {
-      tags: {
-        error_type: 'reflection_not_found',
-        page_type: 'reflection_post',
-        location: 'generateMetadata',
-      },
-      contexts: {
-        post: {
-          slug,
-          path: `/reflections/${slug}`,
-          referer,
-        },
-      },
-      level: 'warning',
-    })
+    capturePostNotFound(slug, 'reflection_post', 'generateMetadata')
     return {
       title: 'Reflection Not Found',
     }
@@ -123,16 +106,8 @@ export default async function Page({ params }: { params: { slug: string[]; local
   const sortedCoreContents = allCoreContent(sortPosts(allReflections))
   const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
   if (postIndex === -1) {
-    return (
-      <div className="mt-24 text-center">
-        <PageTitle>
-          Under Construction{' '}
-          <span role="img" aria-label="roadwork sign">
-            🚧
-          </span>
-        </PageTitle>
-      </div>
-    )
+    capturePostNotFound(slug, 'reflection_post')
+    notFound()
   }
 
   const prev = sortedCoreContents[postIndex + 1]

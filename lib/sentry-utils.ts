@@ -1,4 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
+import { PostNotFoundError } from 'errors/post.error'
+import { headers } from 'next/headers'
 
 /**
  * 수동으로 에러를 Sentry에 전송
@@ -26,18 +28,30 @@ export function setUserContext(user: { id?: string; email?: string; username?: s
   Sentry.setUser(user)
 }
 
-/**
- * 커스텀 태그 설정
- */
-export function setTag(key: string, value: string) {
-  Sentry.setTag(key, value)
-}
+export function capturePostNotFound(
+  slug: string,
+  pageType: 'blog_post' | 'reflection_post',
+  location?: string
+) {
+  const headersList = headers()
+  const referer = headersList.get('referer') || 'direct'
 
-/**
- * 성능 추적을 위한 스팬 생성 (Sentry v8 방식)
- */
-export function withSentrySpan<T>(name: string, op: string, fn: () => T): T {
-  return Sentry.withActiveSpan(null, () => {
-    return Sentry.startSpan({ name, op }, fn)
+  const error = new PostNotFoundError(slug, referer, pageType)
+
+  Sentry.captureException(error, {
+    fingerprint: ['post-not-found', pageType === 'blog_post' ? 'blog' : 'reflection'],
+    tags: {
+      error_type: 'post_not_found',
+      page_type: pageType,
+      ...(location && { location }),
+    },
+    contexts: {
+      post: {
+        slug: error.slug,
+        path: `/${pageType === 'blog_post' ? 'posts' : 'reflections'}/${slug}`,
+        referer: error.referer,
+      },
+    },
+    level: 'warning',
   })
 }

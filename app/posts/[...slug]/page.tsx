@@ -6,11 +6,12 @@ import siteMetadata from '@/data/siteMetadata'
 import PostBanner from '@/layouts/PostBanner'
 import PostLayout from '@/layouts/PostLayout'
 import PostSimple from '@/layouts/PostSimple'
+
+import { capturePostNotFound } from '@/libs/sentry-utils'
 import * as Sentry from '@sentry/nextjs'
 import type { Authors, Blog } from 'contentlayer/generated'
 import { allAuthors, allBlogs } from 'contentlayer/generated'
 import { Metadata } from 'next'
-import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { MDXLayoutRenderer } from 'pliny/mdx-components'
 import { allCoreContent, coreContent, sortPosts } from 'pliny/utils/contentlayer.js'
@@ -31,24 +32,7 @@ export async function generateMetadata({
   const post = allBlogs.find((p) => p.slug === slug)
 
   if (!post) {
-    const headersList = headers()
-    const referer = headersList.get('referer') || 'direct'
-
-    Sentry.captureException(new Error('Post not found in metadata generation'), {
-      tags: {
-        error_type: 'post_not_found',
-        page_type: 'blog_post',
-        location: 'generateMetadata',
-      },
-      contexts: {
-        post: {
-          slug,
-          path: `/posts/${slug}`,
-          referer,
-        },
-      },
-      level: 'warning',
-    })
+    capturePostNotFound(slug, 'blog_post', 'generateMetadata')
     return {
       title: 'Post Not Found',
     }

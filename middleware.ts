@@ -11,7 +11,6 @@ export async function middleware(request: NextRequest) {
     const slug = pathname.split('/').pop()
 
     if (slug && slug !== 'posts') {
-      // 쿠키로 이미 카운트했는지 확인
       const viewedKey = `viewed_${slug}`
       const hasViewed = request.cookies.get(viewedKey)
 
@@ -45,7 +44,7 @@ export async function middleware(request: NextRequest) {
 
         const response = NextResponse.next()
         response.cookies.set(viewedKey, 'true', {
-          maxAge: 60 * 60, // 1시간
+          maxAge: 60 * 60,
           httpOnly: true,
           sameSite: 'lax',
         })
