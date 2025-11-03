@@ -41,10 +41,16 @@ export async function capturePostNotFound(
   pageType: 'blog_post' | 'reflection_post',
   location?: string
 ) {
-  // Server Component에서만 사용 가능하므로 동적 import
-  const { headers } = await import('next/headers')
-  const headersList = headers()
-  const referer = headersList.get('referer') || 'direct'
+  // referer 가져오기 (빌드 타임에는 사용 불가)
+  let referer = 'build-time'
+  try {
+    const { headers } = await import('next/headers')
+    const headersList = headers()
+    referer = headersList.get('referer') || 'direct'
+  } catch (error) {
+    // 빌드 타임이나 정적 생성 시에는 headers() 사용 불가
+    console.warn('[Sentry] headers() not available, using build-time referer')
+  }
 
   const error = new PostNotFoundError(slug, referer, pageType)
 

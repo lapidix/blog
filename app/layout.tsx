@@ -143,8 +143,8 @@ export default function RootLayout({
           }}
         />
 
-        {/* 구조화된 데이터 - Organization 스키마 */}
-        <script
+        {/* Organization 스키마 제거 - 검색 결과에 사이트 이름 추가 방지 */}
+        {/* <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
@@ -159,7 +159,7 @@ export default function RootLayout({
               ),
             }),
           }}
-        />
+        /> */}
         {/* <script
           async
           defer
