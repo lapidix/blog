@@ -7,7 +7,7 @@ import PostBanner from '@/layouts/PostBanner'
 import PostLayout from '@/layouts/PostLayout'
 import PostSimple from '@/layouts/PostSimple'
 import { capturePostNotFound } from '@/libs/sentry-utils'
-import type { Authors, Reflection } from 'contentlayer/generated'
+import type { Authors } from 'contentlayer/generated'
 import { allAuthors, allReflections } from 'contentlayer/generated'
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
@@ -25,14 +25,17 @@ export async function generateMetadata({
   params,
 }: {
   params: { slug: string[] }
-}): Promise<Metadata> {
+}): Promise<Metadata | never> {
   const slug = decodeURI(params.slug.join('/'))
-  const post = allReflections.find((p) => p.slug === slug)
+  const sortedCoreContents = allCoreContent(sortPosts(allReflections))
+  const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
 
-  if (!post) {
+  if (postIndex === -1) {
     await capturePostNotFound(slug, 'reflection_post', 'generateMetadata')
     notFound()
   }
+
+  const post = allReflections.find((p) => p.slug === slug)!
 
   const authorList = post.authors || ['default']
   const authorDetails = authorList.map((author) => {
@@ -110,7 +113,11 @@ export default async function Page({ params }: { params: { slug: string[]; local
 
   const prev = sortedCoreContents[postIndex + 1]
   const next = sortedCoreContents[postIndex - 1]
-  const post = allReflections.find((p) => p.slug === slug) as Reflection
+  const post = allReflections.find((p) => p.slug === slug)
+
+  if (!post) {
+    notFound()
+  }
   const authorList = post?.authors || ['default']
   const authorDetails = authorList.map((author) => {
     const authorResults = allAuthors.find((p) => p.slug === author)

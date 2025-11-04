@@ -9,7 +9,7 @@ import PostSimple from '@/layouts/PostSimple'
 
 import { capturePostNotFound } from '@/libs/sentry-utils'
 import * as Sentry from '@sentry/nextjs'
-import type { Authors, Blog } from 'contentlayer/generated'
+import type { Authors } from 'contentlayer/generated'
 import { allAuthors, allBlogs } from 'contentlayer/generated'
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
@@ -27,14 +27,17 @@ export async function generateMetadata({
   params,
 }: {
   params: { slug: string[] }
-}): Promise<Metadata> {
+}): Promise<Metadata | never> {
   const slug = decodeURI(params.slug.join('/'))
-  const post = allBlogs.find((p) => p.slug === slug)
+  const sortedCoreContents = allCoreContent(sortPosts(allBlogs))
+  const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
 
-  if (!post) {
+  if (postIndex === -1) {
     await capturePostNotFound(slug, 'blog_post', 'generateMetadata')
     notFound()
   }
+
+  const post = allBlogs.find((p) => p.slug === slug)!
 
   const authorList = post.authors || ['default']
   const authorDetails = authorList.map((author) => {
@@ -127,7 +130,11 @@ export default async function Page({ params }: { params: { slug: string[]; local
 
   const prev = sortedCoreContents[postIndex + 1]
   const next = sortedCoreContents[postIndex - 1]
-  const post = allBlogs.find((p) => p.slug === slug) as Blog
+  const post = allBlogs.find((p) => p.slug === slug)
+
+  if (!post) {
+    notFound()
+  }
   const authorList = post?.authors || ['default']
   const authorDetails = authorList.map((author) => {
     const authorResults = allAuthors.find((p) => p.slug === author)
