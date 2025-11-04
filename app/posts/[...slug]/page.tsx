@@ -8,7 +8,6 @@ import PostLayout from '@/layouts/PostLayout'
 import PostSimple from '@/layouts/PostSimple'
 
 import { capturePostNotFound } from '@/libs/sentry-utils'
-import * as Sentry from '@sentry/nextjs'
 import type { Authors } from 'contentlayer/generated'
 import { allAuthors, allBlogs } from 'contentlayer/generated'
 import { Metadata } from 'next'
@@ -27,17 +26,25 @@ export async function generateMetadata({
   params,
 }: {
   params: { slug: string[] }
-}): Promise<Metadata | never> {
+}): Promise<Metadata> {
   const slug = decodeURI(params.slug.join('/'))
   const sortedCoreContents = allCoreContent(sortPosts(allBlogs))
   const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
 
   if (postIndex === -1) {
-    await capturePostNotFound(slug, 'blog_post', 'generateMetadata')
-    notFound()
+    return {
+      title: 'Post Not Found',
+      description: 'The requested blog post could not be found.',
+    }
   }
 
-  const post = allBlogs.find((p) => p.slug === slug)!
+  const post = allBlogs.find((p) => p.slug === slug)
+  if (!post) {
+    return {
+      title: 'Post Not Found',
+      description: 'The requested blog post could not be found.',
+    }
+  }
 
   const authorList = post.authors || ['default']
   const authorDetails = authorList.map((author) => {
@@ -112,19 +119,7 @@ export default async function Page({ params }: { params: { slug: string[]; local
   const sortedCoreContents = allCoreContent(sortPosts(allBlogs))
   const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
   if (postIndex === -1) {
-    Sentry.captureException(new Error('Blog post not found'), {
-      tags: {
-        error_type: 'post_not_found',
-        page_type: 'blog_post',
-      },
-      contexts: {
-        post: {
-          slug,
-          path: `/posts/${slug}`,
-        },
-      },
-      level: 'warning',
-    })
+    await capturePostNotFound(slug, 'blog_post', 'Page')
     notFound()
   }
 

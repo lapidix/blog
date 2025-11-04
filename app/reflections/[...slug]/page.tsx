@@ -25,17 +25,25 @@ export async function generateMetadata({
   params,
 }: {
   params: { slug: string[] }
-}): Promise<Metadata | never> {
+}): Promise<Metadata> {
   const slug = decodeURI(params.slug.join('/'))
   const sortedCoreContents = allCoreContent(sortPosts(allReflections))
   const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
 
   if (postIndex === -1) {
-    await capturePostNotFound(slug, 'reflection_post', 'generateMetadata')
-    notFound()
+    return {
+      title: 'Reflection Not Found',
+      description: 'The requested reflection could not be found.',
+    }
   }
 
-  const post = allReflections.find((p) => p.slug === slug)!
+  const post = allReflections.find((p) => p.slug === slug)
+  if (!post) {
+    return {
+      title: 'Reflection Not Found',
+      description: 'The requested reflection could not be found.',
+    }
+  }
 
   const authorList = post.authors || ['default']
   const authorDetails = authorList.map((author) => {
@@ -107,7 +115,7 @@ export default async function Page({ params }: { params: { slug: string[]; local
   const sortedCoreContents = allCoreContent(sortPosts(allReflections))
   const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
   if (postIndex === -1) {
-    await capturePostNotFound(slug, 'reflection_post')
+    await capturePostNotFound(slug, 'reflection_post', 'Page')
     notFound()
   }
 
