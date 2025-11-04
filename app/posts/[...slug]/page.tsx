@@ -33,9 +33,7 @@ export async function generateMetadata({
 
   if (!post) {
     await capturePostNotFound(slug, 'blog_post', 'generateMetadata')
-    return {
-      title: 'Post Not Found',
-    }
+    notFound()
   }
 
   const authorList = post.authors || ['default']

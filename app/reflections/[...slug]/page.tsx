@@ -31,9 +31,7 @@ export async function generateMetadata({
 
   if (!post) {
     await capturePostNotFound(slug, 'reflection_post', 'generateMetadata')
-    return {
-      title: 'Reflection Not Found',
-    }
+    notFound()
   }
 
   const authorList = post.authors || ['default']
