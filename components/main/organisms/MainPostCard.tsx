@@ -13,7 +13,7 @@ interface MainPostCardProps {
 }
 
 const MainPostCard = ({ post, author }: MainPostCardProps) => {
-  const { slug, date, title, summary, tags, images } = post
+  const { slug, date, title, summary, tags, images, type } = post
   return (
     <div className="container rounded-xl h-full shadow-md bg-slate-200 dark:bg-slate-700 flex flex-col justify-center items-center p-4">
       <PostThumbnailWrapper
@@ -27,7 +27,7 @@ const MainPostCard = ({ post, author }: MainPostCardProps) => {
       <div className="mt-2 w-full lg:mt-0 h-60 md:h-72 flex flex-col items-start justify-start min-h-max overflow-hidden">
         <div className="flex-1 w-full overflow-hidden">
           <NavigationButton
-            href={`/posts/${slug}`}
+            href={type === 'Blog' ? `/posts/${slug}` : `/reflections/${slug}`}
             isArrow={false}
             color="slate"
             title={title}
