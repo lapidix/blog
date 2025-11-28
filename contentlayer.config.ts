@@ -48,9 +48,9 @@ const computedFields: ComputedFields = {
 /**
  * Count the occurrences of all tags across blog posts and write to json file
  */
-function createTagCount(allBlogs) {
+function createTagCount(allDocuments) {
   const tagCount: Record<string, number> = {}
-  allBlogs.forEach((file) => {
+  allDocuments.forEach((file) => {
     if (file.tags && (!isProduction || file.draft !== true)) {
       file.tags.forEach((tag) => {
         const formattedTag = GithubSlugger.slug(tag)
@@ -65,14 +65,14 @@ function createTagCount(allBlogs) {
   writeFileSync('./app/tag-data.json', JSON.stringify(tagCount))
 }
 
-function createSearchIndex(allBlogs) {
+function createSearchIndex(allDocuments) {
   if (
     siteMetadata?.search?.provider === 'kbar' &&
     siteMetadata.search.kbarConfig.searchDocumentsPath
   ) {
     writeFileSync(
       `public/${siteMetadata.search.kbarConfig.searchDocumentsPath}`,
-      JSON.stringify(allCoreContent(sortPosts(allBlogs)))
+      JSON.stringify(allCoreContent(sortPosts(allDocuments)))
     )
     console.log('Local search index generated...')
   }

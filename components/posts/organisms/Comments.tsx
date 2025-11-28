@@ -11,11 +11,9 @@ export default function Comments({ slug }: { slug: string }) {
   useEffect(() => {
     setLoadComments(true)
 
-    // ✅ 현재 ref 값을 변수에 저장 (클로저 캡처)
     const container = containerRef.current
 
     return () => {
-      // ✅ 캡처된 값 사용
       if (container) {
         const iframes = container.querySelectorAll('iframe')
         iframes.forEach((iframe) => {

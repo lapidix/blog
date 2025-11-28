@@ -115,14 +115,8 @@ module.exports = () => {
           permanent: true,
         },
         {
-          source: '/:path*',
-          has: [
-            {
-              type: 'host',
-              value: 'min71.dev',
-            },
-          ],
-          destination: 'https://lapidix.dev/:path*',
+          source: '/posts/resignation',
+          destination: '/reflections/resignation',
           permanent: true,
         },
       ]
