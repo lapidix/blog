@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "start": "next dev",
-    "dev": "cross-env INIT_CWD=$PWD next dev",
-    "build": "cross-env NODE_OPTIONS='--experimental-json-modules --no-warnings' next build && node ./scripts/fix-contentlayer.mjs && node ./scripts/generate-data.mjs && cross-env NODE_OPTIONS='--experimental-json-modules --no-warnings' node ./scripts/postbuild.mjs",
+    "dev": "node ./scripts/fix-contentlayer.mjs && cross-env INIT_CWD=$PWD next dev",
+    "build": "node ./scripts/fix-contentlayer.mjs && cross-env NODE_OPTIONS='--experimental-json-modules --no-warnings' next build && cross-env NODE_OPTIONS='--experimental-json-modules --no-warnings' node ./scripts/generate-data.mjs",
     "serve": "next start",
     "analyze": "cross-env ANALYZE=true next build",
     "lint": "next lint --fix --dir pages --dir app --dir components --dir lib --dir layouts --dir scripts"

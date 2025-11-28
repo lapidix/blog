@@ -1,55 +1,41 @@
-import { writeFileSync } from 'fs'
+import { readFileSync, writeFileSync } from 'fs'
 import GithubSlugger from 'github-slugger'
 import { allCoreContent, sortPosts } from 'pliny/utils/contentlayer.js'
 import siteMetadata from '../data/siteMetadata.js'
 
-// JSON import를 동적으로 처리
-import { dirname } from 'path'
-import { fileURLToPath } from 'url'
+const isProduction = process.env.NODE_ENV === 'production'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+const allBlogs = JSON.parse(readFileSync('./.contentlayer/generated/Blog/_index.json', 'utf-8'))
+const allReflections = JSON.parse(
+  readFileSync('./.contentlayer/generated/Reflection/_index.json', 'utf-8')
+)
 
-async function generateData() {
-  try {
-    // contentlayer 생성된 데이터 동적 import
-    const { allBlogs, allReflections } = await import('../.contentlayer/generated/index.mjs')
+const tagCount = {}
+const allDocuments = [...allBlogs, ...allReflections]
 
-    // Tag count 생성
-    const tagCount = {}
-    const isProduction = process.env.NODE_ENV === 'production'
-
-    const allDocs = [...allBlogs, ...allReflections]
-    allDocs.forEach((file) => {
-      if (file.tags && (!isProduction || file.draft !== true)) {
-        file.tags.forEach((tag) => {
-          const formattedTag = GithubSlugger.slug(tag)
-          if (formattedTag in tagCount) {
-            tagCount[formattedTag] += 1
-          } else {
-            tagCount[formattedTag] = 1
-          }
-        })
+allDocuments.forEach((file) => {
+  if (file.tags && (!isProduction || file.draft !== true)) {
+    file.tags.forEach((tag) => {
+      const formattedTag = GithubSlugger.slug(tag)
+      if (formattedTag in tagCount) {
+        tagCount[formattedTag] += 1
+      } else {
+        tagCount[formattedTag] = 1
       }
     })
-
-    writeFileSync('./app/tag-data.json', JSON.stringify(tagCount))
-    console.log('Tag data generated...')
-
-    // Search index 생성
-    if (
-      siteMetadata?.search?.provider === 'kbar' &&
-      siteMetadata.search.kbarConfig.searchDocumentsPath
-    ) {
-      writeFileSync(
-        `public/${siteMetadata.search.kbarConfig.searchDocumentsPath}`,
-        JSON.stringify(allCoreContent(sortPosts(allDocs)))
-      )
-      console.log('Local search index generated...')
-    }
-  } catch (error) {
-    console.error('Error generating data:', error)
   }
-}
+})
 
-generateData()
+writeFileSync('./app/tag-data.json', JSON.stringify(tagCount))
+console.log('Tag count generated...')
+
+if (
+  siteMetadata?.search?.provider === 'kbar' &&
+  siteMetadata.search.kbarConfig.searchDocumentsPath
+) {
+  writeFileSync(
+    `public/${siteMetadata.search.kbarConfig.searchDocumentsPath}`,
+    JSON.stringify(allCoreContent(sortPosts(allDocuments)))
+  )
+  console.log('Local search index generated...')
+}
