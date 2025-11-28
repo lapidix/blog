@@ -16,24 +16,19 @@ export async function middleware(request: NextRequest) {
 
       if (!hasViewed) {
         console.log(`Middleware: Incrementing views for ${slug}`)
-
-        // 직접 KV에서 조회수 증가
         console.log(`Incrementing views directly in KV for: ${slug}`)
 
         try {
           const { kv } = await import('@vercel/kv')
 
-          // 1. 개별 조회수 증가
           const views = await kv.incr(`views:${slug}`)
           console.log(`New view count for ${slug}: ${views}`)
 
-          // 2. Sorted Set에 조회수 업데이트 (score가 조회수)
           await kv.zadd('trending:posts', { score: views, member: slug })
           console.log(`Updated trending posts for ${slug}`)
         } catch (error) {
           console.error('Middleware: Failed to increment views in KV:', error)
 
-          // Sentry에 에러 전송
           const { captureKVError } = await import('./lib/sentry-utils')
           captureKVError(error as Error, 'increment_views', {
             slug,
@@ -56,7 +51,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/posts/((?!page/).+)', // 포스트 페이지만, 페이지네이션 제외
-  ],
+  matcher: ['/posts/((?!page/).+)'],
 }

@@ -221,4 +221,32 @@ export default makeSource({
       rehypePresetMinify,
     ],
   },
+  onSuccess: async (importData) => {
+    // 1. import assertion 수정 (Node.js 22 호환)
+    const { readFileSync: readFile, writeFileSync: writeFile } = await import('fs')
+    const indexPath = './.contentlayer/generated/index.mjs'
+
+    try {
+      const content = readFile(indexPath, 'utf-8')
+      const fixed = content.replace(
+        /assert\s*\{\s*type:\s*['"]json['"]\s*\}/g,
+        "with { type: 'json' }"
+      )
+      if (content !== fixed) {
+        writeFile(indexPath, fixed)
+        console.log('Fixed import assertions in generated files')
+      }
+    } catch (error) {
+      console.warn('Could not fix import assertions:', error)
+    }
+
+    // 2. 데이터 생성
+    const data = await importData()
+    const allBlogs = data.allBlogs || []
+    const allReflections = data.allReflections || []
+    const allDocuments = [...allBlogs, ...allReflections]
+
+    createTagCount(allDocuments)
+    createSearchIndex(allDocuments)
+  },
 })
