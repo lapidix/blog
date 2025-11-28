@@ -71,6 +71,8 @@ const siteMetadata = {
       themeURL: '',
       // This corresponds to the `data-lang="en"` in giscus's configurations
       lang: 'ko',
+      strict: '0',
+      loading: 'lazy',
     },
   },
   search: {
