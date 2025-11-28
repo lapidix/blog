@@ -1,53 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith('/posts/')) {
-    const pathname = request.nextUrl.pathname
+  const { pathname } = request.nextUrl
 
+  if (pathname.startsWith('/posts/')) {
     if (pathname.includes('/page/')) {
       return NextResponse.next()
     }
 
-    const slug = pathname.split('/').pop()
+    const slug = pathname.replace('/posts/', '')
+    const viewedKey = `viewed_${slug}`
+    const hasViewed = request.cookies.get(viewedKey)
 
-    if (slug && slug !== 'posts') {
-      const viewedKey = `viewed_${slug}`
-      const hasViewed = request.cookies.get(viewedKey)
+    if (!hasViewed) {
+      incrementViews(slug).catch((error) => {
+        console.error('[Middleware] View increment failed:', error)
+      })
 
-      if (!hasViewed) {
-        console.log(`Middleware: Incrementing views for ${slug}`)
-        console.log(`Incrementing views directly in KV for: ${slug}`)
-
-        try {
-          const { kv } = await import('@vercel/kv')
-
-          const views = await kv.incr(`views:${slug}`)
-          console.log(`New view count for ${slug}: ${views}`)
-
-          await kv.zadd('trending:posts', { score: views, member: slug })
-          console.log(`Updated trending posts for ${slug}`)
-        } catch (error) {
-          console.error('Middleware: Failed to increment views in KV:', error)
-
-          const { captureKVError } = await import('./lib/sentry-utils')
-          captureKVError(error as Error, 'increment_views', {
-            slug,
-            location: 'middleware',
-          })
-        }
-
-        const response = NextResponse.next()
-        response.cookies.set(viewedKey, 'true', {
-          maxAge: 60 * 60,
-          httpOnly: true,
-          sameSite: 'lax',
-        })
-        return response
-      }
+      const response = NextResponse.next()
+      response.cookies.set(viewedKey, 'true', {
+        maxAge: 60 * 60, // 1시간
+        httpOnly: true,
+        sameSite: 'lax',
+      })
+      return response
     }
   }
 
   return NextResponse.next()
+}
+
+async function incrementViews(slug: string) {
+  try {
+    const { kv } = await import('@vercel/kv')
+
+    const views = await kv.incr(`views:${slug}`)
+    await kv.zadd('trending:posts', { score: views, member: slug })
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Middleware] Views for ${slug}: ${views}`)
+    }
+  } catch (error) {
+    const { captureKVError } = await import('./lib/sentry-utils')
+    captureKVError(error as Error, 'increment_views', {
+      slug,
+      location: 'middleware',
+    })
+    throw error
+  }
 }
 
 export const config = {

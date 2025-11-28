@@ -119,6 +119,11 @@ module.exports = () => {
           destination: '/reflections/resignation',
           permanent: true,
         },
+        {
+          source: '/posts/_next/:path*',
+          destination: '/_next/:path*',
+          permanent: false,
+        },
       ]
     },
     webpack: (config, options) => {
