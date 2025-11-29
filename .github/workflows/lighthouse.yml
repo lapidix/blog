@@ -62,16 +62,37 @@ jobs:
           echo 'Links payload:'
           echo '${{ steps.lighthouse.outputs.links }}'
 
-      - name: Extract primary report link
-        id: report_link
+      - name: Extract report links
+        id: report_links
         run: |
           REPORT='${{ steps.lighthouse.outputs.links }}'
+
           if [ -z "$REPORT" ] || [ "$REPORT" = "null" ]; then
-            echo "url=" >> "$GITHUB_OUTPUT"
-          else
-            URL=$(printf '%s' "$REPORT" | jq -r 'to_entries[0].value // empty')
-            echo "url=$URL" >> "$GITHUB_OUTPUT"
+            echo "primary=" >> "$GITHUB_OUTPUT"
+            echo "list=" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          PRIMARY=$(printf '%s' "$REPORT" | jq -r 'to_entries[0].value // empty')
+
+          printf '%s' "$REPORT" \
+            | jq -r 'to_entries[] | [.key, .value] | @tsv' > links.tsv
+
+          : > links.md
+          while IFS=$'\t' read -r PATH URL; do
+            case "$PATH" in
+              */) ICON="🏠" ;;
+              */posts) ICON="📝" ;;
+              */reflections) ICON="💭" ;;
+              *) ICON="🔗" ;;
+            esac
+            echo "${ICON} [${PATH}](${URL})" >> links.md
+          done < links.tsv
+
+          LIST=$(awk '{printf "%s\\n", $0}' links.md)
+
+          echo "primary=$PRIMARY" >> "$GITHUB_OUTPUT"
+          echo "list=$LIST" >> "$GITHUB_OUTPUT"
 
       - name: Send to Discord
         env:
@@ -81,7 +102,8 @@ jobs:
           BEST: ${{ steps.parse.outputs.best_practices }}
           SEO: ${{ steps.parse.outputs.seo }}
           DEPLOY_URL: ${{ github.event.deployment_status.target_url }}
-          REPORT_URL: ${{ steps.report_link.outputs.url }}
+          REPORT_URL: ${{ steps.report_links.outputs.primary }}
+          REPORT_LIST: ${{ steps.report_links.outputs.list }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
           if [ -z "$DISCORD_WEBHOOK" ]; then
@@ -129,7 +151,7 @@ jobs:
                   {\"name\": \"$ACCESS_EMOJI Accessibility\", \"value\": \"**$ACCESS_SCORE**/100\", \"inline\": true},
                   {\"name\": \"$BEST_EMOJI Best Practices\", \"value\": \"**$BEST_SCORE**/100\", \"inline\": true},
                   {\"name\": \"$SEO_EMOJI SEO\", \"value\": \"**$SEO_SCORE**/100\", \"inline\": true},
-                  {\"name\": \"🔗 Links\", \"value\": \"[🌐 Deployment]($DEPLOY_URL) • [📊 Full Report]($REPORT_URL)\", \"inline\": false}
+                  {\"name\": \"🔗 Links\", \"value\": \"$REPORT_LIST\", \"inline\": false}
                 ],
                 \"footer\": {\"text\": \"Commit: ${COMMIT_SHA:0:7}\"},
                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
