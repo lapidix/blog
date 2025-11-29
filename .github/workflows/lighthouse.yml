@@ -25,7 +25,7 @@ jobs:
           urls: |
             ${{ github.event.deployment_status.target_url }}
             ${{ github.event.deployment_status.target_url }}/posts
-            ${{ github.event.deployment_status.target_url }}/about
+            ${{ github.event.deployment_status.target_url }}/reflections
           uploadArtifacts: true
           temporaryPublicStorage: true
           runs: 3
@@ -36,10 +36,15 @@ jobs:
           MANIFEST=".lighthouseci/manifest.json"
 
           if [ -f "$MANIFEST" ]; then
-            PERF=$(jq -r '.[0].summary.performance' $MANIFEST 2>/dev/null || echo "0")
-            ACCESS=$(jq -r '.[0].summary.accessibility' $MANIFEST 2>/dev/null || echo "0")
-            BEST=$(jq -r '.[0].summary["best-practices"]' $MANIFEST 2/...
-            SEO=$(jq -r '.[0].summary.seo' $MANIFEST 2>/dev/null || echo "0")
+            PERF=$(jq -r '.[0].summary.performance' "$MANIFEST" 2>/dev/null)
+            ACCESS=$(jq -r '.[0].summary.accessibility' "$MANIFEST" 2>/dev/null)
+            BEST=$(jq -r '.[0].summary["best-practices"]' "$MANIFEST" 2>/dev/null)
+            SEO=$(jq -r '.[0].summary.seo' "$MANIFEST" 2>/dev/null)
+
+            : "${PERF:=0}"
+            : "${ACCESS:=0}"
+            : "${BEST:=0}"
+            : "${SEO:=0}"
 
             echo "perf=$PERF" >> $GITHUB_OUTPUT
             echo "accessibility=$ACCESS" >> $GITHUB_OUTPUT
