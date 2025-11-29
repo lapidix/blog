@@ -117,6 +117,11 @@ jobs:
           COMMIT_SHA: ${{ github.sha }}
           PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/lighthouse
         run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_WEBHOOK is not set. Skipping Discord notification."
+            exit 0
+          fi
+
           PERF_SCORE=$(printf '%.0f' $(echo "$PERF * 100" | bc))
           ACCESS_SCORE=$(printf '%.0f' $(echo "$ACCESS * 100" | bc))
           BEST_SCORE=$(printf '%.0f' $(echo "$BEST * 100" | bc))
@@ -147,42 +152,20 @@ jobs:
           SEO_EMOJI=$(get_emoji $SEO)
 
           curl -H "Content-Type: application/json" \
-            -d '{
-              "embeds": [{
-                "title": "🔦 Lighthouse CI Report",
-                "description": "Performance analysis completed for production deployment",
-                "color": '$COLOR',
-                "fields": [
-                  {
-                    "name": "'"$PERF_EMOJI"' Performance",
-                    "value": "**'"$PERF_SCORE"'**/100",
-                    "inline": true
-                  },
-                  {
-                    "name": "'"$ACCESS_EMOJI"' Accessibility",
-                    "value": "**'"$ACCESS_SCORE"'**/100",
-                    "inline": true
-                  },
-                  {
-                    "name": "'"$BEST_EMOJI"' Best Practices",
-                    "value": "**'"$BEST_SCORE"'**/100",
-                    "inline": true
-                  },
-                  {
-                    "name": "'"$SEO_EMOJI"' SEO",
-                    "value": "**'"$SEO_SCORE"'**/100",
-                    "inline": true
-                  },
-                  {
-                    "name": "🔗 Links",
-                    "value": "[🌐 Deployment]('"$DEPLOY_URL"') • [📊 Temp Report]('"$REPORT_URL"') • [📚 Archive]('"$PAGES_URL"')",
-                    "inline": false
-                  }
+            -d "{
+              \"embeds\": [{
+                \"title\": \"🔦 Lighthouse CI Report\",
+                \"description\": \"Performance analysis completed for production deployment\",
+                \"color\": $COLOR,
+                \"fields\": [
+                  {\"name\": \"$PERF_EMOJI Performance\", \"value\": \"**$PERF_SCORE**/100\", \"inline\": true},
+                  {\"name\": \"$ACCESS_EMOJI Accessibility\", \"value\": \"**$ACCESS_SCORE**/100\", \"inline\": true},
+                  {\"name\": \"$BEST_EMOJI Best Practices\", \"value\": \"**$BEST_SCORE**/100\", \"inline\": true},
+                  {\"name\": \"$SEO_EMOJI SEO\", \"value\": \"**$SEO_SCORE**/100\", \"inline\": true},
+                  {\"name\": \"🔗 Links\", \"value\": \"[🌐 Deployment]($DEPLOY_URL) • [📚 Archive]($PAGES_URL)\", \"inline\": false}
                 ],
-                "footer": {
-                  "text": "Commit: '"${COMMIT_SHA:0:7}"'"
-                },
-                "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%S.000Z)'"
+                \"footer\": {\"text\": \"Commit: ${COMMIT_SHA:0:7}\"},
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
               }]
-            }' \
+            }" \
             $DISCORD_WEBHOOK
