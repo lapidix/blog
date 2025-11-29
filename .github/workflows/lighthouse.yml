@@ -100,12 +100,11 @@ jobs:
 
       - name: Deploy to GitHub PAGES_URL
         uses: peaceiris/actions-gh-pages@v3
-        if: github.event.deployment.ref == 'main'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./lighthouse-reports
           keep_files: true
-          destination_dir: Lighthouse
+          destination_dir: lighthouse
 
       - name: Send to Discord
         env:
