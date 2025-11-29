@@ -57,14 +57,20 @@ jobs:
             echo "seo=0" >> $GITHUB_OUTPUT
           fi
 
+      - name: Debug links
+        run: |
+          echo 'Links payload:'
+          echo '${{ steps.lighthouse.outputs.links }}'
+
       - name: Extract primary report link
         id: report_link
         run: |
           REPORT='${{ steps.lighthouse.outputs.links }}'
-          if [ -z "$REPORT" ]; then
+          if [ -z "$REPORT" ] || [ "$REPORT" = "null" ]; then
             echo "url=" >> "$GITHUB_OUTPUT"
           else
-            echo "url=$(printf '%s' "$REPORT" | jq -r 'values[0]')" >> "$GITHUB_OUTPUT"
+            URL=$(printf '%s' "$REPORT" | jq -r 'to_entries[0].value // empty')
+            echo "url=$URL" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Send to Discord
