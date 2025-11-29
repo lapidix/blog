@@ -60,7 +60,12 @@ jobs:
       - name: Extract primary report link
         id: report_link
         run: |
-          echo "url=$(echo '${{ steps.lighthouse.outputs.links }}' | jq -r 'values[0]')" >> $GITHUB_OUTPUT
+          REPORT='${{ steps.lighthouse.outputs.links }}'
+          if [ -z "$REPORT" ]; then
+            echo "url=" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=$(printf '%s' "$REPORT" | jq -r 'values[0]')" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Send to Discord
         env:
