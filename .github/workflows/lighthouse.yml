@@ -10,7 +10,8 @@ jobs:
   lighthouse:
     runs-on: ubuntu-latest
     if: github.event.deployment_status.state == 'success' &&
-      startsWith(toLower(github.event.deployment_status.environment), 'prod')
+      (startsWith(github.event.deployment_status.environment, 'Production') ||
+      startsWith(github.event.deployment_status.environment, 'production'))
 
     steps:
       - name: Checkout
