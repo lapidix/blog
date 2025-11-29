@@ -12,25 +12,25 @@ console.log('Sentry Client Init:', {
 Sentry.init({
   dsn: process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN,
 
-  // 클라이언트 성능 추적 샘플링 (프로덕션에서 낮게)
   tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
 
-  // 환경 구분
   environment: process.env.NODE_ENV,
 
-  // 개인정보 보호
+  // Protected Privacy
   sendDefaultPii: false,
 
-  // 릴리즈 버전
   release: process.env.SENTRY_RELEASE || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA,
 
-  // 클라이언트 에러 필터링
   beforeSend(event) {
     if (process.env.NODE_ENV === 'development') {
       console.error('Sentry Client Event:', event)
     }
+    // Bot filtering
+    const userAgent = event.request?.headers?.['User-Agent'] || ''
+    if (/bot|crawler|spider/i.test(userAgent)) {
+      return null
+    }
+
     return event
   },
-
-  // 성능 모니터링은 자동으로 활성화됨 (tracesSampleRate > 0일 때)
 })
