@@ -143,30 +143,6 @@ export default function RootLayout({
             }),
           }}
         />
-
-        {/* Organization 스키마 제거 - 검색 결과에 사이트 이름 추가 방지 */}
-        {/* <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              '@context': 'https://schema.org',
-              '@type': 'Organization',
-              name: siteMetadata.title,
-              url: siteMetadata.siteUrl,
-              logo: `${siteMetadata.siteUrl}${siteMetadata.siteLogo}`,
-              description: siteMetadata.description,
-              sameAs: [siteMetadata.github, siteMetadata.twitter, siteMetadata.linkedin].filter(
-                Boolean
-              ),
-            }),
-          }}
-        /> */}
-        {/* <script
-          async
-          defer
-          src="https://cloud.umami.is/script.js"
-          data-website-id="49768dc7-9d09-41de-8b65-38049ca7d81d"
-        /> */}
       </head>
 
       <body className="bg-white text-black antialiased dark:bg-gray-800 dark:text-white">
