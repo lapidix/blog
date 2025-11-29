@@ -4,7 +4,7 @@ on:
   deployment_status:
 
 permissions:
-  contents: write # Permission for GitHub Pages deployment
+  contents: write
 
 jobs:
   lighthouse:
@@ -38,9 +38,9 @@ jobs:
           if [ -f "$MANIFEST" ]; then
             PERF=$(jq -r '.[0].summary.performance' $MANIFEST 2>/dev/null || echo "0")
             ACCESS=$(jq -r '.[0].summary.accessibility' $MANIFEST 2>/dev/null || echo "0")
-            BEST=$(jq -r '.[0].summary["best-practices"]' $MANIFEST 2>/dev/null || echo "0")
+            BEST=$(jq -r '.[0].summary["best-practices"]' $MANIFEST 2/...
             SEO=$(jq -r '.[0].summary.seo' $MANIFEST 2>/dev/null || echo "0")
-            
+
             echo "perf=$PERF" >> $GITHUB_OUTPUT
             echo "accessibility=$ACCESS" >> $GITHUB_OUTPUT
             echo "best_practices=$BEST" >> $GITHUB_OUTPUT
@@ -52,57 +52,10 @@ jobs:
             echo "seo=0" >> $GITHUB_OUTPUT
           fi
 
-      - name: Generate GitHub Pages Report
+      - name: Extract primary report link
+        id: report_link
         run: |
-          # Create date-based directory
-          DATE=$(date +%Y-%m-%d)
-          TIME=$(date +%H-%M-%S)
-          REPORT_DIR="lighthouse-reports/$DATE/$TIME"
-          mkdir -p $REPORT_DIR
-
-          # Copy Lighthouse results
-          cp -r .lighthouseci/* $REPORT_DIR/
-
-          # Create index page with latest report list
-          cat > lighthouse-reports/index.html <<EOF
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Lighthouse Reports</title>
-            <style>
-              body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
-              h1 { color: #333; }
-              .report { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
-              .report:hover { background: #f5f5f5; }
-              .score { display: inline-block; padding: 5px 10px; border-radius: 3px; margin: 5px; }
-              .good { background: #0cce6b; color: white; }
-              .average { background: #ffa400; color: white; }
-              .poor { background: #ff4e42; color: white; }
-            </style>
-          </head>
-          <body>
-            <h1>🔦 Lighthouse CI Reports</h1>
-            <div class="report">
-              <h3>Latest Report - $DATE $TIME</h3>
-              <div>
-                <span class="score good">Performance: $(printf '%.0f' $(echo "${{ steps.parse.outputs.perf }} * 100" | bc))</span>
-                <span class="score good">Accessibility: $(printf '%.0f' $(echo "${{ steps.parse.outputs.accessibility }} * 100" | bc))</span>
-                <span class="score good">Best Practices: $(printf '%.0f' $(echo "${{ steps.parse.outputs.best_practices }} * 100" | bc))</span>
-                <span class="score good">SEO: $(printf '%.0f' $(echo "${{ steps.parse.outputs.seo }} * 100" | bc))</span>
-              </div>
-              <p><a href="$REPORT_DIR/manifest.json">View Full Report</a></p>
-            </div>
-          </body>
-          </html>
-          EOF
-
-      - name: Deploy to GitHub PAGES_URL
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./lighthouse-reports
-          keep_files: true
-          destination_dir: lighthouse
+          echo "url=$(echo '${{ steps.lighthouse.outputs.links }}' | jq -r 'values[0]')" >> $GITHUB_OUTPUT
 
       - name: Send to Discord
         env:
@@ -112,9 +65,8 @@ jobs:
           BEST: ${{ steps.parse.outputs.best_practices }}
           SEO: ${{ steps.parse.outputs.seo }}
           DEPLOY_URL: ${{ github.event.deployment_status.target_url }}
-          REPORT_URL: ${{ steps.lighthouse.outputs.links }}
+          REPORT_URL: ${{ steps.report_link.outputs.url }}
           COMMIT_SHA: ${{ github.sha }}
-          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/lighthouse
         run: |
           if [ -z "$DISCORD_WEBHOOK" ]; then
             echo "DISCORD_WEBHOOK is not set. Skipping Discord notification."
@@ -154,14 +106,14 @@ jobs:
             -d "{
               \"embeds\": [{
                 \"title\": \"🔦 Lighthouse CI Report\",
-                \"description\": \"Performance analysis completed for production deployment\",
+                \"description\": \"Performance analysis completed for deployment\",
                 \"color\": $COLOR,
                 \"fields\": [
                   {\"name\": \"$PERF_EMOJI Performance\", \"value\": \"**$PERF_SCORE**/100\", \"inline\": true},
                   {\"name\": \"$ACCESS_EMOJI Accessibility\", \"value\": \"**$ACCESS_SCORE**/100\", \"inline\": true},
                   {\"name\": \"$BEST_EMOJI Best Practices\", \"value\": \"**$BEST_SCORE**/100\", \"inline\": true},
                   {\"name\": \"$SEO_EMOJI SEO\", \"value\": \"**$SEO_SCORE**/100\", \"inline\": true},
-                  {\"name\": \"🔗 Links\", \"value\": \"[🌐 Deployment]($DEPLOY_URL) • [📚 Archive]($PAGES_URL)\", \"inline\": false}
+                  {\"name\": \"🔗 Links\", \"value\": \"[🌐 Deployment]($DEPLOY_URL) • [📊 Full Report]($REPORT_URL)\", \"inline\": false}
                 ],
                 \"footer\": {\"text\": \"Commit: ${COMMIT_SHA:0:7}\"},
                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
