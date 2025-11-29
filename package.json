@@ -6,6 +6,7 @@
     "start": "next dev",
     "dev": "node ./scripts/fix-contentlayer.mjs && cross-env INIT_CWD=$PWD next dev",
     "build": "cross-env NODE_OPTIONS='--experimental-json-modules --no-warnings' next build",
+    "sentry:upload": "sentry-cli releases set-commits \"$VERCEL_GIT_COMMIT_SHA\" --auto || true",
     "serve": "next start",
     "analyze": "cross-env ANALYZE=true next build",
     "lint": "next lint --fix --dir pages --dir app --dir components --dir lib --dir layouts --dir scripts"
@@ -48,6 +49,7 @@
     "unist-util-visit": "^4.1.0"
   },
   "devDependencies": {
+    "@sentry/cli": "^2.58.2",
     "@svgr/webpack": "^8.0.1",
     "@types/mdx": "^2.0.5",
     "@types/react": "^18.3.3",
