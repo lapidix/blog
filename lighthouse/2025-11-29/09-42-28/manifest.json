@@ -1,0 +1,119 @@
+[
+  {
+    "url": "https://blog-ld0wwjhnu-lapidix.vercel.app/",
+    "isRepresentativeRun": false,
+    "htmlPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_-2025_11_29_09_40_35.report.html",
+    "jsonPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_-2025_11_29_09_40_35.report.json",
+    "summary": {
+      "performance": 0.47,
+      "accessibility": 0.96,
+      "best-practices": 1,
+      "seo": 1,
+      "pwa": 0.5
+    }
+  },
+  {
+    "url": "https://blog-ld0wwjhnu-lapidix.vercel.app/",
+    "isRepresentativeRun": false,
+    "htmlPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_-2025_11_29_09_41_01.report.html",
+    "jsonPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_-2025_11_29_09_41_01.report.json",
+    "summary": {
+      "performance": 0.88,
+      "accessibility": 0.96,
+      "best-practices": 1,
+      "seo": 1,
+      "pwa": 0.5
+    }
+  },
+  {
+    "url": "https://blog-ld0wwjhnu-lapidix.vercel.app/posts",
+    "isRepresentativeRun": false,
+    "htmlPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_posts-2025_11_29_09_41_13.report.html",
+    "jsonPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_posts-2025_11_29_09_41_13.report.json",
+    "summary": {
+      "performance": 0.88,
+      "accessibility": 0.91,
+      "best-practices": 1,
+      "seo": 0.93,
+      "pwa": 0.5
+    }
+  },
+  {
+    "url": "https://blog-ld0wwjhnu-lapidix.vercel.app/posts",
+    "isRepresentativeRun": false,
+    "htmlPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_posts-2025_11_29_09_41_39.report.html",
+    "jsonPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_posts-2025_11_29_09_41_39.report.json",
+    "summary": {
+      "performance": 0.88,
+      "accessibility": 0.91,
+      "best-practices": 1,
+      "seo": 0.93,
+      "pwa": 0.5
+    }
+  },
+  {
+    "url": "https://blog-ld0wwjhnu-lapidix.vercel.app/about",
+    "isRepresentativeRun": false,
+    "htmlPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_about-2025_11_29_09_41_51.report.html",
+    "jsonPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_about-2025_11_29_09_41_51.report.json",
+    "summary": {
+      "performance": 0.91,
+      "accessibility": 0.93,
+      "best-practices": 0.96,
+      "seo": 1,
+      "pwa": 0.5
+    }
+  },
+  {
+    "url": "https://blog-ld0wwjhnu-lapidix.vercel.app/about",
+    "isRepresentativeRun": false,
+    "htmlPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_about-2025_11_29_09_42_15.report.html",
+    "jsonPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_about-2025_11_29_09_42_15.report.json",
+    "summary": {
+      "performance": 0.92,
+      "accessibility": 0.93,
+      "best-practices": 0.96,
+      "seo": 1,
+      "pwa": 0.5
+    }
+  },
+  {
+    "url": "https://blog-ld0wwjhnu-lapidix.vercel.app/",
+    "isRepresentativeRun": true,
+    "htmlPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_-2025_11_29_09_40_49.report.html",
+    "jsonPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_-2025_11_29_09_40_49.report.json",
+    "summary": {
+      "performance": 0.9,
+      "accessibility": 0.96,
+      "best-practices": 1,
+      "seo": 1,
+      "pwa": 0.5
+    }
+  },
+  {
+    "url": "https://blog-ld0wwjhnu-lapidix.vercel.app/posts",
+    "isRepresentativeRun": true,
+    "htmlPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_posts-2025_11_29_09_41_26.report.html",
+    "jsonPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_posts-2025_11_29_09_41_26.report.json",
+    "summary": {
+      "performance": 0.89,
+      "accessibility": 0.91,
+      "best-practices": 1,
+      "seo": 0.93,
+      "pwa": 0.5
+    }
+  },
+  {
+    "url": "https://blog-ld0wwjhnu-lapidix.vercel.app/about",
+    "isRepresentativeRun": true,
+    "htmlPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_about-2025_11_29_09_42_03.report.html",
+    "jsonPath": "/home/runner/work/blog/blog/.lighthouseci/blog_ld0wwjhnu_lapidix_vercel_app-_about-2025_11_29_09_42_03.report.json",
+    "summary": {
+      "performance": 0.93,
+      "accessibility": 0.93,
+      "best-practices": 0.96,
+      "seo": 1,
+      "pwa": 0.5
+    }
+  }
+]
