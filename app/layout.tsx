@@ -116,7 +116,6 @@ export default function RootLayout({
           content="BmBwdNWRqcNIxTL4GvqckRWEP1JS-Z7_2xVDhaCdYNE"
         />
 
-        {/* 구조화된 데이터 - WebSite 스키마 */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
