@@ -8,6 +8,7 @@ import Footer from '@/components/common/molecules/Footer'
 import Header from '@/components/header/organisms/Header'
 import siteMetadata from '@/data/siteMetadata'
 import { Analytics } from '@vercel/analytics/react'
+import { SentryIdentifier } from 'app/sentry-identifier'
 import { Metadata } from 'next'
 import { SearchConfig, SearchProvider } from 'pliny/search'
 import { ThemeProviders } from './theme-providers'
@@ -172,6 +173,7 @@ export default function RootLayout({
         <ThemeProviders>
           <Analytics />
           <GoogleAnalytics />
+          <SentryIdentifier />
           <SectionContainer>
             <div className="flex h-screen flex-col justify-between font-sans">
               <SearchProvider searchConfig={siteMetadata.search as SearchConfig}>
