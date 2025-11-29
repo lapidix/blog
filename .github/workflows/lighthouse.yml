@@ -9,7 +9,8 @@ permissions:
 jobs:
   lighthouse:
     runs-on: ubuntu-latest
-    if: github.event.deployment_status.state == 'success' && github.event.deployment_status.environment == 'Production'
+    if: github.event.deployment_status.state == 'success' &&
+      startsWith(toLower(github.event.deployment_status.environment), 'prod')
 
     steps:
       - name: Checkout
