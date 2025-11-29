@@ -6,7 +6,7 @@
     "start": "next dev",
     "dev": "node ./scripts/fix-contentlayer.mjs && cross-env INIT_CWD=$PWD next dev",
     "build": "cross-env NODE_OPTIONS='--experimental-json-modules --no-warnings' next build",
-    "sentry:upload": "sentry-cli releases set-commits \"$VERCEL_GIT_COMMIT_SHA\" --auto || true",
+    "sentry:upload": "sentry-cli releases set-commits \"$VERCEL_GIT_COMMIT_SHA\" --auto --ignore-missing || true",
     "serve": "next start",
     "analyze": "cross-env ANALYZE=true next build",
     "lint": "next lint --fix --dir pages --dir app --dir components --dir lib --dir layouts --dir scripts"
