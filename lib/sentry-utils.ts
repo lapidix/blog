@@ -38,7 +38,7 @@ export function setUserContext(user: { id?: string; email?: string; username?: s
 
 export async function capturePostNotFound(
   slug: string,
-  pageType: 'blog_post' | 'reflection_post',
+  pageType: 'blog_post' | 'retrospection_post',
   location?: string
 ) {
   let referer = 'build-time'
@@ -53,7 +53,7 @@ export async function capturePostNotFound(
   const error = new PostNotFoundError(slug, referer, pageType)
 
   Sentry.captureException(error, {
-    fingerprint: ['post-not-found', pageType === 'blog_post' ? 'blog' : 'reflection'],
+    fingerprint: ['post-not-found', pageType === 'blog_post' ? 'blog' : 'retrospection'],
     tags: {
       error_type: 'post_not_found',
       page_type: pageType,
@@ -62,7 +62,7 @@ export async function capturePostNotFound(
     contexts: {
       post: {
         slug: error.slug,
-        path: `/${pageType === 'blog_post' ? 'posts' : 'reflections'}/${slug}`,
+        path: `/${pageType === 'blog_post' ? 'posts' : 'retrospections'}/${slug}`,
         referer: error.referer,
       },
     },

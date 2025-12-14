@@ -2,14 +2,14 @@ import MainPage from '@/components/main/pages/MainPage'
 import {
   allAuthors,
   allBlogs,
-  allReflections,
+  allRetrospections,
   Authors,
   Blog,
-  Reflection,
+  Retrospection,
 } from 'contentlayer/generated'
 import { allCoreContent, CoreContent, sortPosts } from 'pliny/utils/contentlayer.js'
 
-interface PostWithViews extends CoreContent<Blog | Reflection> {
+interface PostWithViews extends CoreContent<Blog | Retrospection> {
   views: number
 }
 
@@ -23,8 +23,8 @@ async function getTrendingPosts(): Promise<PostWithViews[]> {
     })
 
     const posts = allCoreContent(sortPosts(allBlogs))
-    const reflectionPosts = allCoreContent(sortPosts(allReflections))
-    const allPosts = [...posts, ...reflectionPosts]
+    const retrospectionPosts = allCoreContent(sortPosts(allRetrospections))
+    const allPosts = [...posts, ...retrospectionPosts]
     const trendingPosts: PostWithViews[] = []
 
     if (trendingSlugs && trendingSlugs.length > 0) {

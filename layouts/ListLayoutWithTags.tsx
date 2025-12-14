@@ -7,7 +7,7 @@ import Link from '@/components/common/atoms/Link'
 import PostContainer from '@/components/posts/organisms/PostContainer'
 import siteMetadata from '@/data/siteMetadata'
 import tagData from 'app/tag-data.json'
-import { allAuthors, type Authors, type Blog, type Reflection } from 'contentlayer/generated'
+import { allAuthors, type Authors, type Blog, type Retrospection } from 'contentlayer/generated'
 import { usePathname } from 'next/navigation'
 import { CoreContent } from 'pliny/utils/contentlayer.js'
 
@@ -15,8 +15,8 @@ interface PaginationProps {
   totalPages: number
   currentPage: number
 }
-type BlogLike = Blog | Reflection
-type CoreBlogLike = CoreContent<Blog> | CoreContent<Reflection>
+type BlogLike = Blog | Retrospection
+type CoreBlogLike = CoreContent<Blog> | CoreContent<Retrospection>
 interface ListLayoutProps {
   posts: CoreBlogLike[]
   title: string

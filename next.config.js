@@ -116,7 +116,7 @@ module.exports = () => {
         },
         {
           source: '/posts/resignation',
-          destination: '/reflections/resignation',
+          destination: '/retrospections/resignation',
           permanent: true,
         },
         {

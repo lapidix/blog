@@ -148,9 +148,9 @@ export const Authors = defineDocumentType(() => ({
   computedFields,
 }))
 
-export const Reflection = defineDocumentType(() => ({
-  name: 'Reflection',
-  filePathPattern: 'reflections/*.mdx',
+export const Retrospection = defineDocumentType(() => ({
+  name: 'Retrospection',
+  filePathPattern: 'retrospections/*.mdx',
   contentType: 'mdx',
   fields: {
     title: { type: 'string', required: true },
@@ -177,7 +177,7 @@ export const Reflection = defineDocumentType(() => ({
         dateModified: doc.lastmod || doc.date,
         description: doc.summary,
         image: doc.images ? doc.images[0] : siteMetadata.socialBanner,
-        url: doc.canonicalUrl || `${siteMetadata.siteUrl}/reflection/${doc.slug}`,
+        url: doc.canonicalUrl || `${siteMetadata.siteUrl}/retrospection/${doc.slug}`,
         author: {
           '@type': 'Person',
           name: siteMetadata.author,
@@ -193,7 +193,7 @@ export const Reflection = defineDocumentType(() => ({
         },
         mainEntityOfPage: {
           '@type': 'WebPage',
-          '@id': doc.canonicalUrl || `${siteMetadata.siteUrl}/reflection/${doc.slug}`,
+          '@id': doc.canonicalUrl || `${siteMetadata.siteUrl}/retrospection/${doc.slug}`,
         },
       }),
     },
@@ -202,7 +202,7 @@ export const Reflection = defineDocumentType(() => ({
 
 export default makeSource({
   contentDirPath: 'data',
-  documentTypes: [Blog, Authors, Reflection],
+  documentTypes: [Blog, Authors, Retrospection],
   mdx: {
     cwd: process.cwd(),
     remarkPlugins: [
@@ -243,8 +243,8 @@ export default makeSource({
     // 2. 데이터 생성
     const data = await importData()
     const allBlogs = data.allBlogs || []
-    const allReflections = data.allReflections || []
-    const allDocuments = [...allBlogs, ...allReflections]
+    const allRetrospections = data.allRetrospections || []
+    const allDocuments = [...allBlogs, ...allRetrospections]
 
     createTagCount(allDocuments)
     createSearchIndex(allDocuments)

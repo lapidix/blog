@@ -1,5 +1,5 @@
 import NavigationButton from '@/components/common/molecules/NavigationButton'
-import { Authors, Blog, Reflection } from 'contentlayer/generated'
+import { Authors, Blog, Retrospection } from 'contentlayer/generated'
 import { CoreContent } from 'pliny/utils/contentlayer.js'
 import { Fragment } from 'react'
 import { RoughNotation } from 'react-rough-notation'
@@ -9,7 +9,7 @@ const TrendingPostContainer = ({
   posts,
   author,
 }: {
-  posts: CoreContent<Blog | Reflection>[]
+  posts: CoreContent<Blog | Retrospection>[]
   author: Authors
 }) => {
   return (

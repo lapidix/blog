@@ -1,4 +1,4 @@
-import { Authors, Blog, Reflection } from 'contentlayer/generated'
+import { Authors, Blog, Retrospection } from 'contentlayer/generated'
 import { CoreContent } from 'pliny/utils/contentlayer.js'
 
 import { PostSummaryTextElement } from '@/components/common/atoms/PostTextElement'
@@ -8,7 +8,7 @@ import PostAuthorSection from '../../common/organisms/PostAuthorSection'
 import Tag from '../../tags/Tag'
 
 interface MainPostCardProps {
-  post: CoreContent<Blog | Reflection>
+  post: CoreContent<Blog | Retrospection>
   author: Authors
 }
 
@@ -27,7 +27,7 @@ const MainPostCard = ({ post, author }: MainPostCardProps) => {
       <div className="mt-2 w-full lg:mt-0 h-60 md:h-72 flex flex-col items-start justify-start min-h-max overflow-hidden">
         <div className="flex-1 w-full overflow-hidden">
           <NavigationButton
-            href={type === 'Blog' ? `/posts/${slug}` : `/reflections/${slug}`}
+            href={type === 'Blog' ? `/posts/${slug}` : `/retrospections/${slug}`}
             isArrow={false}
             color="slate"
             title={title}

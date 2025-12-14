@@ -25,7 +25,7 @@ jobs:
           urls: |
             ${{ github.event.deployment_status.target_url }}
             ${{ github.event.deployment_status.target_url }}/posts
-            ${{ github.event.deployment_status.target_url }}/reflections
+            ${{ github.event.deployment_status.target_url }}/retrospections
           uploadArtifacts: true
           temporaryPublicStorage: true
           runs: 3
@@ -83,7 +83,7 @@ jobs:
             case "$PATH" in
               */) ICON="🏠" ;;
               */posts) ICON="📝" ;;
-              */reflections) ICON="💭" ;;
+              */retrospections) ICON="💭" ;;
               *) ICON="🔗" ;;
             esac
             echo "${ICON} [${PATH}](${URL})" >> links.md

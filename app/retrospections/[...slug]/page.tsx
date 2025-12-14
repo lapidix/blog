@@ -8,7 +8,7 @@ import PostLayout from '@/layouts/PostLayout'
 import PostSimple from '@/layouts/PostSimple'
 import { capturePostNotFound } from '@/libs/sentry-utils'
 import type { Authors } from 'contentlayer/generated'
-import { allAuthors, allReflections } from 'contentlayer/generated'
+import { allAuthors, allRetrospections } from 'contentlayer/generated'
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { MDXLayoutRenderer } from 'pliny/mdx-components'
@@ -27,21 +27,21 @@ export async function generateMetadata({
   params: { slug: string[] }
 }): Promise<Metadata> {
   const slug = decodeURI(params.slug.join('/'))
-  const sortedCoreContents = allCoreContent(sortPosts(allReflections))
+  const sortedCoreContents = allCoreContent(sortPosts(allRetrospections))
   const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
 
   if (postIndex === -1) {
     return {
-      title: 'Reflection Not Found',
-      description: 'The requested reflection could not be found.',
+      title: 'Retrospection Not Found',
+      description: 'The requested retrospection could not be found.',
     }
   }
 
-  const post = allReflections.find((p) => p.slug === slug)
+  const post = allRetrospections.find((p) => p.slug === slug)
   if (!post) {
     return {
-      title: 'Reflection Not Found',
-      description: 'The requested reflection could not be found.',
+      title: 'Retrospection Not Found',
+      description: 'The requested retrospection could not be found.',
     }
   }
 
@@ -63,7 +63,7 @@ export async function generateMetadata({
   }
 
   const keywords = post.tags || []
-  const postUrl = `${siteMetadata.siteUrl}/reflections/${post.slug}`
+  const postUrl = `${siteMetadata.siteUrl}/retrospections/${post.slug}`
   return {
     title: {
       absolute: post.title,
@@ -103,7 +103,7 @@ export async function generateMetadata({
   }
 }
 export const generateStaticParams = async () => {
-  const paths = allReflections.map((p) => ({ slug: p.slug.split('/') }))
+  const paths = allRetrospections.map((p) => ({ slug: p.slug.split('/') }))
 
   return paths
 }
@@ -112,16 +112,16 @@ export default async function Page({ params }: { params: { slug: string[]; local
   const slug = decodeURI(params.slug.join('/'))
 
   // Filter out drafts in production
-  const sortedCoreContents = allCoreContent(sortPosts(allReflections))
+  const sortedCoreContents = allCoreContent(sortPosts(allRetrospections))
   const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
   if (postIndex === -1) {
-    await capturePostNotFound(slug, 'reflection_post', 'Page')
+    await capturePostNotFound(slug, 'retrospection_post', 'Page')
     notFound()
   }
 
   const prev = sortedCoreContents[postIndex + 1]
   const next = sortedCoreContents[postIndex - 1]
-  const post = allReflections.find((p) => p.slug === slug)
+  const post = allRetrospections.find((p) => p.slug === slug)
 
   if (!post) {
     notFound()
@@ -135,7 +135,7 @@ export default async function Page({ params }: { params: { slug: string[]; local
   const jsonLd = post.structuredData
 
   // JSON-LD 구조화된 데이터 개선
-  const postUrl = `${siteMetadata.siteUrl}/reflections/${post.slug}`
+  const postUrl = `${siteMetadata.siteUrl}/retrospections/${post.slug}`
   jsonLd['@context'] = 'https://schema.org'
   jsonLd['@type'] = 'BlogPosting'
   jsonLd['mainEntityOfPage'] = {

@@ -1,19 +1,19 @@
 import Tag from '@/components/tags/Tag'
-import type { Authors, Blog, Reflection } from 'contentlayer/generated'
+import type { Authors, Blog, Retrospection } from 'contentlayer/generated'
 import { CoreContent } from 'pliny/utils/contentlayer.js'
 import { PostSummaryTextElement } from '../../common/atoms/PostTextElement'
 import NavigationButton from '../../common/molecules/NavigationButton'
 import PostThumbnailWrapper from '../../common/molecules/PostThumbnailWrapper'
 import PostAuthorSection from '../../common/organisms/PostAuthorSection'
 
-type BlogLike = Blog | Reflection | CoreContent<Blog> | CoreContent<Reflection>
+type BlogLike = Blog | Retrospection | CoreContent<Blog> | CoreContent<Retrospection>
 type MinimalPost = Pick<Blog, 'slug' | 'date' | 'title' | 'summary' | 'tags' | 'images'> & {
   path?: string
 }
 
 export default function PostContainer({ post, author }: { post: BlogLike; author: Authors }) {
   const { slug, date, title, summary, tags, images, path } = post as MinimalPost
-  // Derive base path from content path like "posts/slug" or "reflections/slug"
+  // Derive base path from content path like "posts/slug" or "retrospections/slug"
   const basePath = path?.split('/')[0] ?? 'posts'
   const href = `/${basePath}/${slug}`
 
