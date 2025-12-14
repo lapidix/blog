@@ -119,6 +119,18 @@ module.exports = () => {
           destination: '/retrospections/resignation',
           permanent: true,
         },
+        // legacy reflection routes → retrospections
+
+        {
+          source: '/reflections/:path*',
+          destination: '/retrospections/:path*',
+          permanent: true,
+        },
+        {
+          source: '/reflection/:path*',
+          destination: '/retrospections/:path*',
+          permanent: true,
+        },
         {
           source: '/posts/_next/:path*',
           destination: '/_next/:path*',
