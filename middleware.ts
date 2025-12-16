@@ -1,14 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// 조회수 카운트에서 제외할 파일 확장자
+const EXCLUDED_EXTENSIONS = [
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.svg',
+  '.ico',
+  '.zip',
+  '.pdf',
+  '.mp4',
+  '.mp3',
+  '.json',
+  '.xml',
+]
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  if (pathname.startsWith('/posts/')) {
-    if (pathname.includes('/page/')) {
-      return NextResponse.next()
-    }
+  // 파일 확장자가 있으면 스킵
+  if (EXCLUDED_EXTENSIONS.some((ext) => pathname.toLowerCase().endsWith(ext))) {
+    return NextResponse.next()
+  }
 
-    const slug = pathname.replace('/posts/', '')
+  // /page/ 경로 스킵 (페이지네이션)
+  if (pathname.includes('/page/')) {
+    return NextResponse.next()
+  }
+
+  // posts 또는 retrospections 경로 처리
+  const isPost = pathname.startsWith('/posts/')
+  const isRetrospection = pathname.startsWith('/retrospections/')
+
+  if (isPost || isRetrospection) {
+    const slug = pathname.replace(/^\/(posts|retrospections)\//, '')
     const viewedKey = `viewed_${slug}`
     const hasViewed = request.cookies.get(viewedKey)
 
@@ -51,5 +78,5 @@ async function incrementViews(slug: string) {
 }
 
 export const config = {
-  matcher: ['/posts/((?!page/).+)'],
+  matcher: ['/posts/:path*', '/retrospections/:path*'],
 }
