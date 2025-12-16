@@ -15,6 +15,8 @@ const EXCLUDED_EXTENSIONS = [
   '.mp3',
   '.json',
   '.xml',
+  '.txt',
+  '.js',
 ]
 
 export async function middleware(request: NextRequest) {
