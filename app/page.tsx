@@ -72,9 +72,19 @@ async function getTrendingPosts(): Promise<PostWithViews[]> {
   }
 }
 
+function getLatestPosts(): CoreContent<Blog | Retrospection>[] {
+  const blogPosts = allCoreContent(sortPosts(allBlogs))
+  const retrospectionPosts = allCoreContent(sortPosts(allRetrospections))
+  const allPosts = [...blogPosts, ...retrospectionPosts]
+
+  // 날짜순 정렬 (최신순)
+  return allPosts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+}
+
 export default async function Page() {
   const author = allAuthors.find((p) => p.slug === 'default') as Authors
   const trendingPosts = await getTrendingPosts()
+  const latestPosts = getLatestPosts()
 
-  return <MainPage posts={trendingPosts} author={author} />
+  return <MainPage trendingPosts={trendingPosts} latestPosts={latestPosts} author={author} />
 }

@@ -4,7 +4,7 @@ import { CoreContent } from 'pliny/utils/contentlayer.js'
 import { RoughNotation } from 'react-rough-notation'
 import MainPostCard from '../organisms/MainPostCard'
 const MAX_DISPLAY = 4
-const TrendingPostContainer = ({
+const LatestPostContainer = ({
   posts,
   author,
 }: {
@@ -67,4 +67,4 @@ const TrendingPostContainer = ({
   )
 }
 
-export default TrendingPostContainer
+export default LatestPostContainer
