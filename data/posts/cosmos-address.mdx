@@ -2,7 +2,7 @@
 title: 'Cosmos Ecosystem의 Address'
 date: '2025-02-07'
 lastmod: '2025-02-07'
-tags: ['Cosmos', 'Cosmos-network', 'Validator', 'COSMOS-SDK']
+tags: ['Cosmos', 'Validator', 'Cosmos-SDK', 'Blockchain']
 draft: false
 summary: 'Cosmos 생태계에서 사용하는 주소체계 및 주소를 변환하는 방법에 대해서 알아봅니다'
 images: ['/static/images/thumbnail/cosmos.png']
@@ -138,7 +138,6 @@ func ConvertToConsensusAddress(address string) (string, error) {
 위 그림은 Cosmos 생태계에서 사용되는 키와 주소의 관계를 보여줍니다. 크게 두 가지 경로로 키와 주소가 생성됩니다:
 
 1. **Application Layer**
-
    - Mnemonic으로부터 Private Key 생성
    - Private Key로부터 Application Layer의 Bech32 Address bytes 생성
    - 이 bytes로부터 Account Address, Validator Operator Address, Consensus Address를 생성

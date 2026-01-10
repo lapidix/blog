@@ -8,7 +8,7 @@ import { RoughNotation } from 'react-rough-notation'
 import IntroduceContainer from '../templates/IntroduceContainer'
 import LatestPostContainer from '../templates/LatestPostContainer'
 
-const INTERESTED_TECH_TAGS = ['cosmos-network', 'frontend']
+const INTERESTED_TECH_TAGS = ['Cosmos', 'Go', 'Frontend', 'Blockchain']
 interface PostWithViews extends CoreContent<Blog | Retrospection> {
   views: number
 }
