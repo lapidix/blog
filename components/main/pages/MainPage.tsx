@@ -27,7 +27,7 @@ export default function MainPage({
       <IntroduceContainer />
       <div className="flex flex-row items-start">
         <LatestPostContainer posts={latestPosts} author={author} />
-        <div className="hidden xl:flex flex-col sticky top-0 self-start mt-4 min-w-72 divide-y divide-gray-200 dark:divide-gray-700">
+        <div className="hidden xl:flex flex-col sticky top-0 self-start min-w-72 divide-y divide-gray-200 dark:divide-gray-700">
           {/* Interested Tags */}
           <div className="py-6 px-4">
             <RoughNotation type="underline" show color="#1d4ed8">
