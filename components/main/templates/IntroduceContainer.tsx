@@ -1,8 +1,6 @@
 import GreetingTextWrapper from '../molecules/GreetingTextWrapper'
 import { TypedIntroduceWrapper } from '../organisms/TypedIntroduceWrapper'
 
-const INTERESTED_TECH_TAGS = ['cosmos-network']
-
 const IntroduceContainer = () => {
   return (
     <div className="flex p-0 md:py-4 w-auto items-center justify-between h-auto border-b">

@@ -17,7 +17,7 @@ async function getTrendingPosts(): Promise<PostWithViews[]> {
   try {
     const { kv } = await import('@vercel/kv')
 
-    const trendingSlugs = await kv.zrange('trending:posts', 0, 4, {
+    const trendingSlugs = await kv.zrange('trending:posts', 0, 11, {
       rev: true,
       withScores: true,
     })
