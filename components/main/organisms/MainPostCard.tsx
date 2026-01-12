@@ -22,6 +22,7 @@ const MainPostCard = ({ post, author }: MainPostCardProps) => {
         image={Array.isArray(images) ? images[0] : '/static/images/banner.jpeg'}
         className="mb-4 rounded-xl h-72 shadow-md bg-white"
         imageObjectFit="contain"
+        href={type === 'Blog' ? `/posts/${slug}` : `/retrospections/${slug}`}
       />
 
       <div className="mt-2 w-full lg:mt-0 h-60 md:h-72 flex flex-col items-start justify-start min-h-max overflow-hidden">
