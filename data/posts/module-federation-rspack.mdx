@@ -1,0 +1,499 @@
+---
+title: 'Module Federation with Rspack'
+date: '2026-03-05'
+lastmod: '2026-03-05'
+tags: ['Module Federation', 'Rspack', 'Webpack', 'Frontend', 'Vite']
+draft: false
+summary: ' Rspack를 사용하여 Module Federation을 구현하는 과정에 대해 정리했습니다.'
+images: ['/static/images/thumbnail/module-federation-rspack.png']
+canonicalUrl: 'https://lapidix.dev/posts/module-federation-rspack/'
+---
+
+![Module Federation with Rspack](/static/images/thumbnail/module-federation-rspack.png)
+
+## 1. Introduction
+
+제가 속해 있는 팀의 프로덕트는 고객에게 두 가지 형태로 전달될 수 있는 제품입니다.
+
+단독 애플리케이션으로 실행되기도 하고, 여러 사내 제품이 함께 묶여 제공되는 통합 애플리케이션의 일부로서의 형태로도 작동합니다.
+
+다만 제가 이 팀에 합류했을 당시에는 이 제품이 단독 애플리케이션으로만 사용되는 것을 기준으로 개발을 진행하고 있었습니다. 그래서 프론트엔드 역시 하나의 애플리케이션, 하나의 번들, 하나의 배포 흐름을 기준으로 설계되어 있었고, 따라서 Vite를 이용해 개발된 기존 구조는 당시로서는 매우 자연스러운 선택이었습니다.
+
+그러나 이번 버저닝에서 우리 제품이 통합 애플리케이션 안에 포함되어야 한다는 요구사항이 전달되었습니다.
+
+이미 다른 팀의 애플리케이션들은 통합 애플리케이션에 통합되어 있었고, 각 팀의 애플리케이션은 그 안에 하나의 모듈처럼 로드되는 구조를 전제로 하고 있었습니다.
+
+이미 통합 애플리케이션은 Micro Frontend 구조로 작동하고 있었고, 각 제품은 독립적으로 개발 및 배포되지만 실행 시점에는 하나의 애플리케이션처럼 조합되는 아키텍처를 갖고 있었습니다.
+
+결과적으로, 기존처럼 단독 실행만을 가정한 프론트엔드 구조로는 새로운 통합 환경을 지원할 수 없게 되었습니다.
+
+이를 해결하기 위해 통합 환경에서도 동작할 수 있도록 마이그레이션을 진행했으며, 이 과정에서 번들러를 Vite에서 Rspack으로 전환하고 Module Federation을 도입하게 되었습니다.
+
+과정과 함께 Module Federation, 그리고 Rspack에 대해 알아보겠습니다!
+
+---
+
+## 2. Micro Frontend
+
+### 2.1 Micro Frontend란
+
+먼저, Micro Frontend란 단어 그대로, 마이크로서비스 아키텍처의 개념을 프론트엔드에 적용한 것입니다.
+
+보통의 전통적인 모놀리식 프론트엔드에서는 하나의 거대한 코드베이스가 전체 UI를 담당합니다.
+반면 Micro Frontend에서는 전체 애플리케이션을 여러 개의 독립적인 프론트엔드 애플리케이션으로 분리하고, 이를 런타임에 하나의 화면으로 조합합니다.
+
+<figure className="flex flex-col items-center justify-center">
+  <img
+    src="/static/images/module-federation-rspack/monolithic-vs-micro-frontend.png"
+    alt="Micro Frontend"
+  />
+  <figcaption className="text-center text-sm text-gray-300 mt-2 font-bold">
+    Monolithic Frontend vs Micro Frontend
+  </figcaption>
+</figure>
+
+이 구조는 아래와 같은 장점을 가집니다.
+
+- 각 팀이 자신의 영역만 개발하고 유지보수가 가능하기 때문에 독립적인 개발이 가능합니다.
+- 한 팀의 변경이 다른 팀의 배포에 영향을 주지 않습니다.
+- 필요하다면 각 앱이 다른 프레임워크를 사용 가능하므로 기술 스택이 유연합니다.
+- 레거시 시스템을 한 번에 바꾸지 않고 조금씩 전환할 수 있는 점진적 마이그레이션이 가능합니다.
+
+### 2.2 통합 애플리케이션 UI의 구조
+
+먼저, 제가 합류하기 전부터 Micro Frontend 구조로 운영되고 있던 통합 애플리케이션은 간단하게 이런 구조를 가집니다.
+
+<figure className="flex flex-col items-center justify-center">
+  <img
+    src="/static/images/module-federation-rspack/integration-application.png"
+    alt="Micro Frontend"
+  />
+  <figcaption className="text-center text-sm text-gray-300 mt-2 font-bold">
+    Integration App Architecture
+  </figcaption>
+</figure>
+
+Host App인 통합 애플리케이션은 윈도우 관리, 앱 간 전환, 인증 같은 공통 기능을 제공하고, 각 Remote App을 필요한 시점에 동적으로 로드합니다.
+
+각 Remote App은 독립적인 팀에서 개발되고, 자체적인 배포 파이프라인을 가지고 있었습니다. 이들은 실행 시점에 Host App 안에서 하나의 앱처럼 동작합니다.
+
+### 2.3 런타임 통합과 방식 선택
+
+여러 앱을 하나의 UI로 합치는 방법은 크게 두 가지입니다.
+
+**빌드 타임 통합**은 모든 앱을 npm 패키지로 만들어 빌드 시점에 합치는 방식입니다.
+
+```bash:Shell showLineNumbers=false
+  npm install @company/app-a @company/app-b @company/app-c
+```
+
+**런타임 통합**은 각 앱을 독립적으로 빌드하고, 실행 시점에 동적으로 불러오는 방식입니다.
+
+```ts:load-remote-app.ts
+const AppA = await loadRemoteApp('https://app-a.example.com/remoteEntry.js')
+```
+
+간단한 앱의 경우 빌드타임에 통합하는 것이 나을 수 있지만, 각 애플리케이션의 크기가 커진다면 런타임에 통합하는 것이 더 나은 방법일 수 있습니다. 간단하게 표로 비교하면 다음과 같습니다.
+
+|           | 빌드 타임 통합                  | 런타임 통합             |
+| --------- | ------------------------------- | ----------------------- |
+| 배포      | Remote 수정 시 Host 재빌드 필요 | Remote만 배포하면 끝    |
+| 번들 크기 | 모든 앱이 하나로 묶임           | 필요한 앱만 로드        |
+| 릴리즈    | 전체 팀 일정 조율 필요          | 각 팀이 독립적으로 배포 |
+
+저희 팀 제품의 통합 역시 이러한 맥락을 고려하여, 런타임 통합 방식으로 구성해야 했습니다.
+
+이 중 런타임 통합 방법에는 대표적으로 아래와 같은 3가지 방법이 존재합니다.
+
+```html:iframe.html
+<!-- iframe  -->
+<!-- 완전한 격리를 제공하지만, 스타일 공유가 어렵고 앱 간 통신이 복잡하며 사용자 경험이 저하됩니다.  -->
+
+<iframe src="https://app-a.example.com"></iframe>
+```
+
+```ts:web-components.ts
+// Web Components
+// 표준 기술이라 프레임워크에 독립적이지만, React와의 통합이 까다롭고 상태 공유가 복잡합니다.
+
+class MyApp extends HTMLElement { ... }
+customElements.define('my-app', MyApp);
+```
+
+```tsx:RemoteApp.tsx
+// Module Federation
+// 일반 React 컴포넌트처럼 사용할 수 있고, 의존성을 런타임에 공유할 수 있지만 Webpack/Rspack 생태계에 의존합니다.
+
+const RemoteApp = await loadRemote('company_product_a/App');
+return <RemoteApp {...props} />;
+```
+
+회사 개발 환경에서는 모든 앱이 React 기반이었고, 디자인 시스템과 상태 관리 라이브러리를 공유해야 했기 때문에 Module Federation이 가장 적합했을 것으로 생각됩니다. 그래서 이미 다른 프로덕트도 Module Federation을 이용해서 통합 환경이 구성되어 있었습니다.
+
+<Info>
+**Module Federation과 React 생태계**
+
+iframe이나 Web Components에 비해 Module Federation은 React의 Context API를 통한 상태 공유나, Styled-components 같은 CSS-in-JS 라이브러리의 테마 공유가 훨씬 자연스럽게 이루어집니다. 이는 React 생태계 위에서 통합 환경을 구축할 때 가장 큰 장점이 됩니다.
+
+</Info>
+
+### 2.4 두 가지 모드를 동시에 지원
+
+회사 프로덕트 중 저희 팀 애플리케이션은 통합으로도 작동해야 하지만, 단독 애플리케이션으로도 작동해야 합니다. 그렇기 때문에 `standalone`, `remote` 두 가지의 형태로 작동해야 합니다.
+
+그렇다면 Module Federation은 정확히 어떤 원리로 동작하는지 살펴보겠습니다.
+
+## 3. Module Federation
+
+### 3.1 Module Federation 개요
+
+Module Federation은 각각 따로 빌드된 앱들이 런타임에 서로의 코드를 공유할 수 있게 해줍니다. Webpack 5(2020)에서 내장 기능으로 처음 등장했고, 2024년에 독립 프로젝트인 2.0이 공개된 뒤 2026년 초에 Stable이 선언되었습니다.
+
+Module Federation에서는 모듈을 노출하는 쪽을 **Remote**, 그것을 로드하는 쪽을 **Host**라고 부릅니다.
+
+Remote는 빌드 설정에서 외부에 노출할 모듈을 정의합니다.
+
+```ts:rspack.config.ts
+// Remote
+new ModuleFederationPlugin({
+  name: 'company_product_a',
+  filename: 'remoteEntry.js',
+  exposes: {
+    './App': './src/RemoteApp.tsx', // 이 모듈을 외부에 노출
+  },
+  shared: { react: { singleton: true } },
+})
+```
+
+Host는 어떤 Remote를 어디서 가져올지 정의합니다.
+
+```ts:rspack.config.ts
+// Host (통합 UI)
+new ModuleFederationPlugin({
+  name: 'company_host',
+  remotes: {
+    company_product_a: 'company_product_a@/mf/product-a/remoteEntry.js',
+  },
+  shared: { react: { singleton: true } },
+})
+```
+
+이렇게 설정하면, Host에서 Remote의 모듈을 마치 로컬 모듈처럼 import할 수 있습니다.
+
+```tsx:HostApp.tsx
+const RemoteApp = await import('company_product_a/App')
+```
+
+이 `import()` 구문이 실행될 때, 브라우저에서는 내부적으로 다음과 같이 동작합니다.
+
+```text:Text showLineNumbers=false
+1. Remote의 remoteEntry.js를 <script> 태그로 로드
+2. Remote가 Host의 공유 의존성(React 등)을 확인하고 재사용 설정
+3. expose된 모듈에 필요한 나머지 청크들을 로드
+4. 모듈 코드 반환 → Host에서 사용
+```
+
+Host와 Remote가 `shared` 설정에 같은 라이브러리를 등록해두면, React 같은 무거운 의존성을 중복 로드하지 않고 하나의 인스턴스를 공유합니다. 만약 공유 의존성으로 등록하지 않고, Host와 Remote의 React 버전이 다르다면, React가 두 번 로드되어 충돌이 나는 등의 문제가 발생할 수 있습니다.
+
+<Note>
+**React의 싱글톤 제약**
+
+만약 공유 의존성으로 제대로 등록하지 않거나 버전이 맞지 않으면, 런타임에 React 인스턴스가 여러 개 생성될 수 있습니다. 이 경우 React 컴포넌트 내부에서 `Invalid hook call` 에러가 발생하며 앱이 완전히 렌더링되지 않는 치명적인 문제가 발생합니다.
+
+</Note>
+
+---
+
+### 3.2 Host/Remote 구조와 Dual Entry Point
+
+저희 팀의 애플리케이션은 통합 환경에서도, 단독 환경에서도 동작해야 합니다. 문제는 두 환경에서 앱이 시작되는 방식이 근본적으로 다르다는 점입니다.
+
+- **단독 실행**: 브라우저가 `index.html`을 로드하고, 앱이 스스로 React를 초기화
+- **통합 실행**: Host가 `remoteEntry.js`를 로드하고, `mount()` 함수를 호출해서 앱을 시작
+
+그래서 하나의 앱 로직(`App.tsx`)에 두 개의 진입점을 만들었습니다:
+
+```text:FileTree showLineNumbers=false
+src/
+├── index.tsx       # Standalone: 직접 createRoot() 호출
+├── RemoteApp.tsx   # Remote: Host가 호출하는 mount/unmount export
+└── App.tsx         # 모드별 앱 분기 로직
+```
+
+**Standalone 모드** — 일반적인 SPA와 동일합니다.
+
+```tsx:index.tsx
+import ReactDOM from 'react-dom/client'
+import App from './App'
+
+ReactDOM.createRoot(document.getElementById('root')!).render(<App />)
+```
+
+**Remote 모드** — Host가 제어권을 가집니다. Host가 DOM 요소를 전달하면 그 안에 렌더링하고, Host가 unmount를 호출하면 정리합니다.
+
+```tsx:RemoteApp.tsx
+export const mount = async (host: HTMLElement, props?: RemoteComponentProps) => {
+  const { default: App } = await import('./App')
+
+  const root = createRoot(host)
+  root.render(<App />)
+}
+
+export const unmount = (host?: HTMLElement) => {
+  // React root 정리
+}
+```
+
+이후 Module Federation 플러그인 설정에서는 이 `RemoteApp.tsx`를 외부로 노출(expose)하도록 지정합니다.
+
+```ts:rspack.config.ts
+new container.ModuleFederationPlugin({
+  name: 'company_product_a',
+  filename: 'remoteEntry.js',
+  exposes: {
+    './App': './src/RemoteApp.tsx', // Host가 get('./App')으로 접근
+  },
+  shared: mfShared,
+})
+```
+
+이렇게 설정해두면 Host 입장에서는 각 Remote의 URL과 expose된 경로만 알면 됩니다. Remote 내부에서 라우팅이나 상태 관리가 어떻게 이루어지는지 등 구현 세부 사항은 전혀 신경 쓸 필요가 없습니다.
+
+```ts:app-registry.ts
+// Host의 앱 레지스트리
+const apps = [
+  { id: 'company_product_a', remoteUrl: '/mf/product-a/remoteEntry.js', entryPoint: './App' },
+  // ...
+]
+```
+
+### 3.3 Shared Dependencies
+
+공유 의존성 설정은 Module Federation을 적용하면서 가장 많은 시간을 쓴 부분 중 하나입니다.
+
+React 훅은 하나의 React 인스턴스에서 동작하는 것을 전제로 합니다. Host와 Remote가 각각 React를 번들에 포함하면 두 개의 React 인스턴스가 생기고, `Invalid hook call` 에러가 발생합니다.
+
+그런데 우리 앱은 단독으로도 동작해야 하므로, 자체 React를 가지고 있어야 하는 상황과 Host의 React를 써야 하는 상황이 공존합니다.
+
+```ts:rspack.config.ts
+// Remote 모드
+const mfSharedRemote = {
+  react: {
+    singleton: true,
+    requiredVersion: false,
+    import: false, // ← 자체 번들에 미포함
+  },
+  'react-dom': { singleton: true, requiredVersion: false, import: false },
+  '@company/ds': { singleton: true, strictVersion: true, import: false },
+}
+
+// Standalone 모드
+const mfSharedStandalone = {
+  react: {
+    singleton: true,
+    requiredVersion: false,
+    eager: true, // ← 번들에 즉시 포함
+  },
+  'react-dom': { singleton: true, requiredVersion: false, eager: true },
+  '@company/ds': { singleton: true, strictVersion: true, eager: true },
+}
+
+// BUILD_MODE에 따라 선택
+const mfShared = isRemoteMode ? mfSharedRemote : mfSharedStandalone
+```
+
+사내 디자인 시스템에는 `strictVersion: true`를 적용했습니다. React는 마이너 버전이 달라도 대체로 동작하지만, 디자인 시스템은 Host와 Remote의 버전이 정확히 일치하지 않으면 UI가 깨질 수 있기 때문입니다. `strictVersion`을 켜면 버전 불일치 시 경고 대신 에러를 발생시켜 문제를 빠르게 발견할 수 있습니다.
+
+### 3.4 적용 시 고려한 제약 사항
+
+#### 번들러 생태계
+
+Module Federation의 런타임 코드는 번들러가 생성합니다. Host(Rspack)와 Remote(Vite)가 서로 다른 번들러를 사용하면, 생성되는 런타임 코드의 포맷이 달라 호환성 문제가 발생할 수 있습니다. 이것이 Vite에서 Rspack으로 전환한 직접적인 이유입니다.
+
+참고로 MF 2.0에서는 런타임이 빌드 도구에서 분리되어 이 제약이 완화되고 있습니다. 향후 `@module-federation/enhanced` 플러그인으로 전환하면 번들러 간 호환성 이슈가 줄어들 수 있습니다.
+
+#### 공유 의존성 버전 관리
+
+`singleton: true`로 설정된 의존성은 Host와 Remote 간 버전이 호환되어야 합니다. Host가 React 18을 쓰는데 Remote가 React 19를 쓰면, 어느 쪽의 React를 사용할지에 따라 예기치 않은 동작이 발생할 수 있습니다.
+
+#### 개발 환경
+
+로컬에서 Host와 Remote를 동시에 띄워야 합니다. 서로 다른 origin에서 실행되므로 CORS 설정이 필요하고, 포트 충돌을 피하기 위해 모드별로 포트를 분리했습니다.
+
+```ts:rspack.config.ts
+devServer: {
+  port: isRemoteMode ? 20018 : 5173,  // 동시 실행 가능
+  headers: { 'Access-Control-Allow-Origin': '*' },
+}
+```
+
+---
+
+### 3.5 MF 2.0
+
+적용한 MF는 Rspack 내장 MF(v1.5)를 사용하고 있지만, MF 2.0은 몇 가지 매력적인 개선을 제공합니다.
+
+**타입 안전성** — 기존에는 Remote가 expose하는 모듈의 타입을 Host에서 알 수 없어 `any`로 처리해야 했습니다. MF 2.0은 Remote의 TypeScript 타입을 자동으로 생성하고 Host에 전달합니다.
+
+**Shared Tree Shaking** — 기존에는 공유 의존성을 통째로 번들에 포함했습니다. 예를 들어 Ant Design에서 Badge, Button, List 세 개 컴포넌트만 사용하더라도 전체 라이브러리(약 1,404KB)가 공유 번들에 포함되었는데, MF 2.0의 Tree Shaking을 적용하면 344KB로 약 75% 감소합니다.
+
+**`mf-manifest.json`** — `remoteEntry.js` URL을 하드코딩하는 대신, 매니페스트 파일로 Remote의 정보를 선언적으로 관리할 수 있습니다. 배포 환경마다 URL이 바뀌는 상황에서 유용합니다.
+
+**런타임 훅** — 모듈 로딩의 각 단계에 훅을 걸 수 있습니다. 예를 들어 Remote 로드 실패 시 폴백 UI를 보여주거나, 로딩 전에 인증 토큰을 주입하는 등의 처리가 가능합니다.
+
+|                     | v1.5        | v2.0 Stable                   |
+| ------------------- | ----------- | ----------------------------- |
+| 패키지              | Rspack 내장 | `@module-federation/enhanced` |
+| 타입 자동 생성      | ✕           | ✔                            |
+| Shared Tree Shaking | ✕           | ✔                            |
+| 매니페스트          | ✕           | `mf-manifest.json`            |
+| 런타임 훅           | 기본 수준   | 전체 라이프사이클             |
+| SSR                 | ✕           | ✔                            |
+| DevTools            | ✕           | Chrome 확장                   |
+
+---
+
+## 4. Vite에서 Rspack으로
+
+### 4.1 Vite에서의 Module Federation
+
+기존 애플리케이션은 Vite 기반이었습니다. ESM 기반의 빠른 개발 서버, 즉각적인 HMR, 간결한 설정을 생각하면 단독 SPA를 개발하기에는 훌륭한 선택이었다고 생각합니다.
+
+그러나 통합 환경에 합류하려면 Module Federation이 필요했고, Vite에서는 `@originjs/vite-plugin-federation` 플러그인을 통해 이를 시도할 수 있었습니다.
+
+```ts:vite.config.ts
+import federation from '@originjs/vite-plugin-federation'
+
+export default defineConfig({
+  plugins: [
+    react(),
+    federation({
+      name: 'company_product_a',
+      filename: 'remoteEntry.js',
+      exposes: {
+        './App': './src/RemoteApp.tsx',
+      },
+      shared: ['react', 'react-dom'],
+    }),
+  ],
+})
+```
+
+### 4.2 실제 통합에서 마주친 문제들
+
+설정 자체는 간단해 보였지만, Rspack 기반의 Host와 실제로 통합하는 과정에서 여러 문제가 생겼습니다.
+
+**1. 빌드 결과물의 호환성 문제**
+
+Module Federation은 Webpack 5의 네이티브 기능입니다. Vite 플러그인은 이를 *에뮬레이션*하는 것이고, 빌드 결과물의 포맷, shared 의존성 해석 방식, 런타임 로딩 메커니즘에서 미묘한 차이가 있었습니다.
+
+**2. 개발 환경의 근본적 차이**
+
+Vite의 개발 서버는 ESM 기반 no-bundle 방식으로 동작합니다. 그러나 Module Federation의 런타임은 전통적인 번들 환경을 전제로 합니다. 개발 모드에서 `remoteEntry.js`가 제대로 생성되지 않거나, Host에서 Remote를 로드할 때 ESM/CommonJS 혼용 이슈가 발생했습니다.
+
+**3. shared 의존성 충돌**
+
+Vite가 의존성을 처리하는 방식(esbuild로 pre-bundling)과 Webpack/Rspack의 방식이 달라서, `import: false`로 설정한 의존성이 예상대로 Host에서 공유되지 않고 Remote가 별도의 인스턴스를 로드하는 경우가 있었습니다.
+
+결정적으로, 에러가 발생했을 때 이것이 Vite 플러그인의 호환성 이슈인지, 아니면 Module Federation 설정 자체의 문제인지 원인을 명확히 구분하기 어려워 디버깅에 많은 시간을 쏟아야 했습니다.
+
+### 4.3 결국 Rspack으로
+
+Vite에서 전환을 결정한 후, 선택지는 Webpack과 Rspack이었습니다.
+
+|           | Webpack         | Rspack                               |
+| --------- | --------------- | ------------------------------------ |
+| MF 지원   | 네이티브 (원조) | 네이티브 (Webpack 호환)              |
+| 빌드 속도 | 느림            | Rust 기반, 5~10배 빠름               |
+| 설정 호환 | -               | Webpack 설정 대부분 그대로 사용 가능 |
+| 생태계    | 성숙            | 상대적으로 새롭지만 빠르게 성장      |
+
+Host가 이미 Rspack을 사용 중이었고, Rspack은 Webpack의 `container.ModuleFederationPlugin`을 네이티브로 지원합니다. 덕분에 Vite 플러그인을 사용할 때와 달리 Host와 완벽히 동일한 런타임 코드를 생성하며, shared 의존성 해석 역시 동일하게 동작했습니다.
+
+```ts:rspack.config.ts
+// Rspack에서의 Module Federation — Webpack과 동일한 API
+import { container } from '@rspack/core'
+
+new container.ModuleFederationPlugin({
+  name: 'company_product_a',
+  filename: 'remoteEntry.js',
+  exposes: {
+    './App': './src/RemoteApp.tsx',
+  },
+  shared: mfShared,
+})
+```
+
+또한 Rspack은 MF 2.0(`@module-federation/enhanced`)의 권장 번들러이기도 합니다. 현재는 내장 v1.5를 사용하고 있지만, 향후 MF 2.0으로 전환 가능성과 Shared Tree Shaking 등의 기능을 바로 활용할 수 있는 점도 선택에 영향을 주었습니다.
+
+Rspack으로 전환하면서 Module Federation 환경에 맞게 추가로 신경 써야 했던 설정들이 있습니다.
+
+#### publicPath
+
+Standalone과 Remote에서 `publicPath` 설정이 달라야 합니다.
+
+```ts:rspack.config.ts
+output: {
+  publicPath: isRemoteMode ? 'auto' : '/',
+}
+```
+
+- **Standalone** (`'/'`): `/settings/account` 같은 깊은 라우팅 경로에서도 자원을 올바르게 로드하기 위해 절대 경로가 필요합니다.
+- **Remote** (`'auto'`): Module Federation 런타임이 `__webpack_public_path__`를 통해 실행 시점에 올바른 경로를 동적으로 결정합니다. Host에서 로드될 위치가 배포 환경마다 다를 수 있기 때문입니다.
+
+#### lazyCompilation
+
+Rspack의 `lazyCompilation`은 개발 시 초기 빌드를 크게 단축시키지만, Remote 모드에서는 비활성화해야 합니다.
+
+```ts:rspack.config.ts
+lazyCompilation:
+  !isProd && !isRemoteMode
+    ? { imports: true, entries: false }
+    : false,
+```
+
+Remote 모드에서 비활성화하는 이유는, lazyCompilation이 활성화되면 `remoteEntry.js`에 프록시 URL이 포함되는데 Host 앱은 이 프록시 URL을 처리할 수 없기 때문입니다. `remoteEntry.js`는 완전한 형태로 빌드되어야 합니다.
+
+<Tip>
+**lazyCompilation과 Module Federation의 관계**
+
+lazyCompilation은 개발 서버 진입 시 필요한 모듈만 온디맨드(on-demand)로 컴파일하여 초기 빌드 속도를 극적으로 높여주는 기능입니다. 단독 실행(Standalone) 환경에서는 매우 유용하지만, Host가 Remote를 로드해야 하는 Module Federation 구조에서는 엔트리 파일이 지연 평가되면 Host가 Remote의 모듈을 제때 찾지 못하는 문제가 발생합니다.
+
+</Tip>
+
+#### 출력 경로 분리
+
+두 모드의 빌드 결과물이 섞이지 않도록 출력 디렉토리를 분리합니다.
+
+```ts:rspack.config.ts
+output: {
+  path: path.resolve(__dirname, isRemoteMode ? 'dist-federation' : 'dist'),
+}
+```
+
+---
+
+## 5. Conclusion
+
+Module Federation에 대해 개념적으로만 알고 있었는데, 실제 프로덕트에 적용해보며 많은 것을 배울 수 있었습니다. 사실 이전에는 Webpack을 자주 사용했고, 최근에는 Vite를 많이 사용했지만 Rspack이라는 번들러는 이번에 처음 알게 되었습니다. 그래서인지 이번에 처음 접해보니 더 재미있고 좋은 경험이었습니다.
+
+레퍼런스가 많지 않았지만, Module Federation과 Rspack의 공식 문서가 잘 되어 있어서 적용할 때 도움이 많이 되었습니다.
+
+덕분에 현재 프로덕트는 하나의 코드베이스만으로도 단독 실행과 통합 실행 두 가지 환경을 모두 유연하게 지원하고 있습니다.
+
+특히 `shared` 설정에서 `singleton`, `import`, `eager` 같은 세부 옵션들이 왜 필요한지, Host와 Remote 간에 의존성이 어떻게 얽히는지를 에러를 통해 많이 배웠습니다.
+
+이번 마이그레이션은 번들러가 단순히 코드를 변환하는 도구를 넘어, 전체적인 프론트엔드 아키텍처를 구성하는 데 얼마나 중요한 역할을 하는지 실감하고,
+더 공부가 필요하다는 생각이 들었습니다.
+
+문서만으로는 와닿지 않던 개념들이, 실제 통합 환경의 문제를 마주하고 직접 해결해 나가는 과정을 통해 더 와닿는 좋은 경험이었고, 이후에도 설계를 할 때 더 다양하게 고민할 수 있을 것 같다는 생각이 들었습니다!
+
+---
+
+## Reference
+
+- [Module Federation의 컨셉과 작동 원리 이해하기 - maxkim-j](https://maxkim-j.github.io/posts/module-federation-concepts)
+- [Module Federation Shared Dependency 작동 원리와 활용 방법](https://maxkim-j.github.io/posts/module-federation-shared)
+- [Module Federation 2.0 공식 문서](https://module-federation.io/)
+- [Webpack 5 Module Federation](https://webpack.js.org/concepts/module-federation/)
+- [Rspack - Module Federation](https://rspack.dev/guide/features/module-federation)
