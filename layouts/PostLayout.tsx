@@ -9,7 +9,7 @@ import ScrollTopAndComment from '@/components/posts/organisms/ScrollTopAndCommen
 
 import Tag from '@/components/tags/Tag'
 import siteMetadata from '@/data/siteMetadata'
-import type { Authors, Blog } from 'contentlayer/generated'
+import { allBlogs, type Authors, type Blog } from 'contentlayer/generated'
 import { CoreContent } from 'pliny/utils/contentlayer.js'
 import { ReactNode } from 'react'
 
@@ -56,8 +56,26 @@ export default async function PostLayout({
 }: LayoutProps) {
   const { filePath, path, slug, date, title, tags, summary, images, readingTime } = content
 
+  const locale = path.startsWith('en/') ? 'en' : 'ko'
+  // slug는 path의 마지막 부분 (en/ 접두사가 없는 순수 slug)
+  const baseSlug = path.split('/').pop()
+
+  // 영문과 국문이 동일한 조회수 키를 공유하도록 en/ 접두사 제거
+  // (만약 영문과 국문을 별도로 카운트하고 싶다면 이 부분을 남겨두지만,
+  // 보통 다국어 포스트의 조회수는 합산해서 보여주는 것이 자연스럽습니다)
+  const viewCountSlug = baseSlug
+
   // 서버에서 조회수 가져오기
-  const viewCount = await getViewCount(slug)
+  const viewCount = await getViewCount(viewCountSlug!)
+  const translationLocale = locale === 'en' ? 'ko' : 'en'
+  // contentlayer에서 추출한 locale을 비교 (en이 아닌 것은 모두 ko로 간주)
+  const translationExists = allBlogs.some((p) => {
+    return (
+      p.path.split('/').pop() === baseSlug &&
+      (p.locale === translationLocale || (p.locale === undefined && translationLocale === 'ko'))
+    )
+  })
+  const translationLink = locale === 'en' ? `/posts/${baseSlug}` : `/en/posts/${baseSlug}`
 
   return (
     <SectionContainer>
@@ -122,6 +140,9 @@ export default async function PostLayout({
                   readingTime={readingTime}
                   viewCount={viewCount}
                   className="flex xl:hidden w-full items-center justify-center gap-3 pt-6"
+                  translationLink={translationLink}
+                  locale={locale}
+                  translationExists={translationExists}
                 />
               </dd>
             </dl>
@@ -143,7 +164,11 @@ export default async function PostLayout({
                   className="hidden xl:flex w-full items-start justify-center flex-col gap-4 py-4 px-1"
                   readingTime={readingTime}
                   viewCount={viewCount}
+                  translationLink={translationLink}
+                  locale={locale}
+                  translationExists={translationExists}
                 />
+
                 {tags && (
                   <div className="py-4 xl:py-8">
                     <h2 className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">

@@ -2202,83 +2202,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@formatjs/ecma402-abstract@npm:1.11.4":
-  version: 1.11.4
-  resolution: "@formatjs/ecma402-abstract@npm:1.11.4"
-  dependencies:
-    "@formatjs/intl-localematcher": 0.2.25
-    tslib: ^2.1.0
-  checksum: 05dbe1c6457acfe9cdc0fc770940260e19fa588be6c655b1ff1697506348dac1eee9b249b64e6544531174d07a5a74a9e75f68430947cfdc074ebe8e3c86f86f
-  languageName: node
-  linkType: hard
-
-"@formatjs/ecma402-abstract@npm:^1.11.4":
-  version: 1.18.3
-  resolution: "@formatjs/ecma402-abstract@npm:1.18.3"
-  dependencies:
-    "@formatjs/intl-localematcher": 0.5.4
-    tslib: ^2.4.0
-  checksum: f41b42c93f80b1150171405e1a73be2f56efe108f4307da294024713521acd76a802b5d21d9846800bf41089d08676c4349fd8eecad59866a2f9a4815fcb250f
-  languageName: node
-  linkType: hard
-
-"@formatjs/fast-memoize@npm:1.2.1":
-  version: 1.2.1
-  resolution: "@formatjs/fast-memoize@npm:1.2.1"
-  dependencies:
-    tslib: ^2.1.0
-  checksum: 7df9e941142be16e5862afe7387926cec44ec136d2c2f9a7e1598cb6c8c23a65e420ed90251ec9b48df083f5473b10d6fbbee2e9fc7233d5bf1f27efffba59a7
-  languageName: node
-  linkType: hard
-
-"@formatjs/icu-messageformat-parser@npm:2.1.0":
-  version: 2.1.0
-  resolution: "@formatjs/icu-messageformat-parser@npm:2.1.0"
-  dependencies:
-    "@formatjs/ecma402-abstract": 1.11.4
-    "@formatjs/icu-skeleton-parser": 1.3.6
-    tslib: ^2.1.0
-  checksum: 8dab4d102b334dd7ab25b85817b074f1b54845d02f9ef9fa5a1fa6a9723176ad28a59d845fdc0eeedb868b891e61a4c530384b123db29f5b14e1f3f8b207373f
-  languageName: node
-  linkType: hard
-
-"@formatjs/icu-skeleton-parser@npm:1.3.6":
-  version: 1.3.6
-  resolution: "@formatjs/icu-skeleton-parser@npm:1.3.6"
-  dependencies:
-    "@formatjs/ecma402-abstract": 1.11.4
-    tslib: ^2.1.0
-  checksum: cce2d8bea54f0096c557dc03920bfe4785893e60962313fab9eeee41f0b411d38b9d45852882b19f261417d730362c8685bea6ba5ac1e2dee141f030cda624e9
-  languageName: node
-  linkType: hard
-
-"@formatjs/intl-localematcher@npm:0.2.25":
-  version: 0.2.25
-  resolution: "@formatjs/intl-localematcher@npm:0.2.25"
-  dependencies:
-    tslib: ^2.1.0
-  checksum: ee00ddc23317dc47a58831aaca5112e101d8bb1f38adc0ecfe1a9d7e008d0bb1091519f07e1d7d805b0c1e28f2c3e75f697ae479e22423445814412c7669284c
-  languageName: node
-  linkType: hard
-
-"@formatjs/intl-localematcher@npm:0.5.4":
-  version: 0.5.4
-  resolution: "@formatjs/intl-localematcher@npm:0.5.4"
-  dependencies:
-    tslib: ^2.4.0
-  checksum: a0af57874fcd163add5f7a0cb1c008e9b09feb1d24cbce1263379ae0393cddd6681197a7f2f512f351a97666fc8675ed52cc17d1834266ee8fc65e9edf3435f6
-  languageName: node
-  linkType: hard
-
-"@formatjs/intl-localematcher@npm:^0.2.32":
-  version: 0.2.32
-  resolution: "@formatjs/intl-localematcher@npm:0.2.32"
-  dependencies:
-    tslib: ^2.4.0
-  checksum: 477e18aabaf2e6e90fc12952a3cb6c0ebb40ad99414d6b9d2501c6348fbad58cacb433ec6630955cfd1491ea7630f32a9dc280bb27d0fb8a784251404a54140a
-  languageName: node
-  linkType: hard
-
 "@giscus/react@npm:^2.3.0":
   version: 2.4.0
   resolution: "@giscus/react@npm:2.4.0"
@@ -4954,7 +4877,6 @@ __metadata:
     next: 14.2.35
     next-contentlayer: 0.3.4
     next-i18next: ^14.0.3
-    next-intl: ^2.21.0
     next-themes: ^0.2.1
     pliny: 0.1.6
     postcss: ^8.4.24
@@ -8376,18 +8298,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"intl-messageformat@npm:^9.3.18":
-  version: 9.13.0
-  resolution: "intl-messageformat@npm:9.13.0"
-  dependencies:
-    "@formatjs/ecma402-abstract": 1.11.4
-    "@formatjs/fast-memoize": 1.2.1
-    "@formatjs/icu-messageformat-parser": 2.1.0
-    tslib: ^2.1.0
-  checksum: effb840ae6e213adceab9951dbb2d18d1a354c82e35dbd213011daf23bcc79e2a18b6ef79157ae3b69c1e6d898fe66b54dd184ac180ee0646e26a70276e60038
-  languageName: node
-  linkType: hard
-
 "ip-address@npm:^10.0.1":
   version: 10.0.1
   resolution: "ip-address@npm:10.0.1"
@@ -10378,13 +10288,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"negotiator@npm:^0.6.3":
-  version: 0.6.4
-  resolution: "negotiator@npm:0.6.4"
-  checksum: 7ded10aa02a0707d1d12a9973fdb5954f98547ca7beb60e31cb3a403cc6e8f11138db7a3b0128425cf836fc85d145ec4ce983b2bdf83dca436af879c2d683510
-  languageName: node
-  linkType: hard
-
 "negotiator@npm:^1.0.0":
   version: 1.0.0
   resolution: "negotiator@npm:1.0.0"
@@ -10422,20 +10325,6 @@ __metadata:
     react: ">= 17.0.2"
     react-i18next: ^13.2.1
   checksum: 96905e9f800e8536f07d5b6f134e529cc71f02e9a380f4dae4dd07a792be9e943946546f5ba171f6224b6039a3f547cb9f09313ef617339d9d8e68d775da2806
-  languageName: node
-  linkType: hard
-
-"next-intl@npm:^2.21.0":
-  version: 2.22.1
-  resolution: "next-intl@npm:2.22.1"
-  dependencies:
-    "@formatjs/intl-localematcher": ^0.2.32
-    negotiator: ^0.6.3
-    use-intl: ^2.22.1
-  peerDependencies:
-    next: ^10.0.0 || ^11.0.0 || ^12.0.0 || ^13.0.0 || ^14.0.0
-    react: ^16.8.0 || ^17.0.0 || ^18.0.0
-  checksum: 0097135845b016fdf06c72559817a072dc3616f4481c32e4ab9977ae1615bb3b7b7eb9bfa4b16fc759bc2ba7c5edaa1344fbc560e96fa7cea135e58d302db838
   languageName: node
   linkType: hard
 
@@ -13295,7 +13184,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tslib@npm:^2.0.3, tslib@npm:^2.1.0, tslib@npm:^2.4.0, tslib@npm:^2.4.1":
+"tslib@npm:^2.0.3, tslib@npm:^2.4.0, tslib@npm:^2.4.1":
   version: 2.8.1
   resolution: "tslib@npm:2.8.1"
   checksum: e4aba30e632b8c8902b47587fd13345e2827fa639e7c3121074d5ee0880723282411a8838f830b55100cbe4517672f84a2472667d355b81e8af165a55dc6203a
@@ -13759,18 +13648,6 @@ __metadata:
   dependencies:
     punycode: ^2.1.0
   checksum: 7167432de6817fe8e9e0c9684f1d2de2bb688c94388f7569f7dbdb1587c9f4ca2a77962f134ec90be0cc4d004c939ff0d05acc9f34a0db39a3c797dada262633
-  languageName: node
-  linkType: hard
-
-"use-intl@npm:^2.22.1":
-  version: 2.22.1
-  resolution: "use-intl@npm:2.22.1"
-  dependencies:
-    "@formatjs/ecma402-abstract": ^1.11.4
-    intl-messageformat: ^9.3.18
-  peerDependencies:
-    react: ^16.8.0 || ^17.0.0 || ^18.0.0
-  checksum: f56f8f177d3d4de93768b95149ec1a2b4dbf32f024ee24bc3cbca857f3835882c180ad1d3c0b9b387dd73a2ae46721a5c86d63dad76cc31046eae03191d603ef
   languageName: node
   linkType: hard
 

@@ -30,6 +30,13 @@ const computedFields: ComputedFields = {
     type: 'json',
     resolve: (doc) => readingTime(doc.body.raw, { wordsPerMinute: 300 }),
   },
+  locale: {
+    type: 'string',
+    resolve: (doc) => {
+      const parts = doc._raw.flattenedPath.split('/')
+      return parts.length >= 2 ? parts[1] : 'ko'
+    },
+  },
   slug: {
     type: 'string',
     resolve: (doc) => doc._raw.flattenedPath.replace(/^.+?(\/)/, ''),
@@ -46,7 +53,7 @@ const computedFields: ComputedFields = {
 }
 
 /**
- * Count the occurrences of all tags across blog posts and write to json file
+ * Count the occurrences of all tags across blog posts and write to json file (per locale)
  */
 function createTagCount(allDocuments) {
   const tagCount: Record<string, number> = {}
@@ -80,7 +87,7 @@ function createSearchIndex(allDocuments) {
 
 export const Blog = defineDocumentType(() => ({
   name: 'Blog',
-  filePathPattern: 'posts/*.mdx',
+  filePathPattern: 'posts/**/*.mdx',
   contentType: 'mdx',
   fields: {
     title: { type: 'string', required: true },
@@ -97,35 +104,58 @@ export const Blog = defineDocumentType(() => ({
   },
   computedFields: {
     ...computedFields,
+    slug: {
+      type: 'string',
+      resolve: (doc) => {
+        const parts = doc._raw.flattenedPath.split('/')
+        return parts[parts.length - 1]
+      },
+    },
+    path: {
+      type: 'string',
+      resolve: (doc) => {
+        const parts = doc._raw.flattenedPath.split('/')
+        const locale = parts.length >= 3 ? parts[1] : 'ko'
+        const baseSlug = parts[parts.length - 1]
+        return locale === 'en' ? `en/${parts[0]}/${baseSlug}` : `${parts[0]}/${baseSlug}`
+      },
+    },
     structuredData: {
       type: 'json',
-      resolve: (doc) => ({
-        '@context': 'https://schema.org',
-        '@type': 'BlogPosting',
-        headline: doc.title,
-        datePublished: doc.date,
-        dateModified: doc.lastmod || doc.date,
-        description: doc.summary,
-        image: doc.images ? doc.images[0] : siteMetadata.socialBanner,
-        url: doc.canonicalUrl || `${siteMetadata.siteUrl}/${doc._raw.flattenedPath}`,
-        author: {
-          '@type': 'Person',
-          name: siteMetadata.author,
-          url: siteMetadata.siteUrl,
-        },
-        publisher: {
-          '@type': 'Organization',
-          name: siteMetadata.title,
-          logo: {
-            '@type': 'ImageObject',
-            url: `${siteMetadata.siteUrl}${siteMetadata.siteLogo}`,
+      resolve: (doc) => {
+        const parts = doc._raw.flattenedPath.split('/')
+        const locale = parts.length >= 3 ? parts[1] : 'ko'
+        const baseSlug = parts[parts.length - 1]
+        const pathForUrl =
+          locale === 'en' ? `en/${parts[0]}/${baseSlug}` : `${parts[0]}/${baseSlug}`
+        return {
+          '@context': 'https://schema.org',
+          '@type': 'BlogPosting',
+          headline: doc.title,
+          datePublished: doc.date,
+          dateModified: doc.lastmod || doc.date,
+          description: doc.summary,
+          image: doc.images ? doc.images[0] : siteMetadata.socialBanner,
+          url: doc.canonicalUrl || `${siteMetadata.siteUrl}/${pathForUrl}`,
+          author: {
+            '@type': 'Person',
+            name: siteMetadata.author,
+            url: siteMetadata.siteUrl,
           },
-        },
-        mainEntityOfPage: {
-          '@type': 'WebPage',
-          '@id': doc.canonicalUrl || `${siteMetadata.siteUrl}/${doc._raw.flattenedPath}`,
-        },
-      }),
+          publisher: {
+            '@type': 'Organization',
+            name: siteMetadata.title,
+            logo: {
+              '@type': 'ImageObject',
+              url: `${siteMetadata.siteUrl}${siteMetadata.siteLogo}`,
+            },
+          },
+          mainEntityOfPage: {
+            '@type': 'WebPage',
+            '@id': doc.canonicalUrl || `${siteMetadata.siteUrl}/${pathForUrl}`,
+          },
+        }
+      },
     },
   },
 }))
@@ -145,12 +175,28 @@ export const Authors = defineDocumentType(() => ({
     github: { type: 'string' },
     layout: { type: 'string' },
   },
-  computedFields,
+  computedFields: {
+    ...computedFields,
+    slug: {
+      type: 'string',
+      resolve: (doc) => {
+        const parts = doc._raw.flattenedPath.split('/')
+        return parts[parts.length - 1]
+      },
+    },
+    path: {
+      type: 'string',
+      resolve: (doc) => {
+        const parts = doc._raw.flattenedPath.split('/')
+        return `${parts[0]}/${parts[parts.length - 1]}`
+      },
+    },
+  },
 }))
 
 export const Retrospection = defineDocumentType(() => ({
   name: 'Retrospection',
-  filePathPattern: 'retrospections/*.mdx',
+  filePathPattern: 'retrospections/**/*.mdx',
   contentType: 'mdx',
   fields: {
     title: { type: 'string', required: true },
@@ -167,35 +213,58 @@ export const Retrospection = defineDocumentType(() => ({
   },
   computedFields: {
     ...computedFields,
+    slug: {
+      type: 'string',
+      resolve: (doc) => {
+        const parts = doc._raw.flattenedPath.split('/')
+        return parts[parts.length - 1]
+      },
+    },
+    path: {
+      type: 'string',
+      resolve: (doc) => {
+        const parts = doc._raw.flattenedPath.split('/')
+        const locale = parts.length >= 3 ? parts[1] : 'ko'
+        const baseSlug = parts[parts.length - 1]
+        return locale === 'en' ? `en/${parts[0]}/${baseSlug}` : `${parts[0]}/${baseSlug}`
+      },
+    },
     structuredData: {
       type: 'json',
-      resolve: (doc) => ({
-        '@context': 'https://schema.org',
-        '@type': 'BlogPosting',
-        headline: doc.title,
-        datePublished: doc.date,
-        dateModified: doc.lastmod || doc.date,
-        description: doc.summary,
-        image: doc.images ? doc.images[0] : siteMetadata.socialBanner,
-        url: doc.canonicalUrl || `${siteMetadata.siteUrl}/retrospection/${doc.slug}`,
-        author: {
-          '@type': 'Person',
-          name: siteMetadata.author,
-          url: siteMetadata.siteUrl,
-        },
-        publisher: {
-          '@type': 'Organization',
-          name: siteMetadata.title,
-          logo: {
-            '@type': 'ImageObject',
-            url: `${siteMetadata.siteUrl}${siteMetadata.siteLogo}`,
+      resolve: (doc) => {
+        const parts = doc._raw.flattenedPath.split('/')
+        const locale = parts.length >= 3 ? parts[1] : 'ko'
+        const baseSlug = parts[parts.length - 1]
+        const pathForUrl =
+          locale === 'en' ? `en/${parts[0]}/${baseSlug}` : `${parts[0]}/${baseSlug}`
+        return {
+          '@context': 'https://schema.org',
+          '@type': 'BlogPosting',
+          headline: doc.title,
+          datePublished: doc.date,
+          dateModified: doc.lastmod || doc.date,
+          description: doc.summary,
+          image: doc.images ? doc.images[0] : siteMetadata.socialBanner,
+          url: doc.canonicalUrl || `${siteMetadata.siteUrl}/${pathForUrl}`,
+          author: {
+            '@type': 'Person',
+            name: siteMetadata.author,
+            url: siteMetadata.siteUrl,
           },
-        },
-        mainEntityOfPage: {
-          '@type': 'WebPage',
-          '@id': doc.canonicalUrl || `${siteMetadata.siteUrl}/retrospection/${doc.slug}`,
-        },
-      }),
+          publisher: {
+            '@type': 'Organization',
+            name: siteMetadata.title,
+            logo: {
+              '@type': 'ImageObject',
+              url: `${siteMetadata.siteUrl}${siteMetadata.siteLogo}`,
+            },
+          },
+          mainEntityOfPage: {
+            '@type': 'WebPage',
+            '@id': doc.canonicalUrl || `${siteMetadata.siteUrl}/retrospection/${doc.slug}`,
+          },
+        }
+      },
     },
   },
 }))

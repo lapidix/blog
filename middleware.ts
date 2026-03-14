@@ -33,12 +33,19 @@ export async function middleware(request: NextRequest) {
   }
 
   // posts 또는 retrospections 경로 처리
-  const isPost = pathname.startsWith('/posts/')
-  const isRetrospection = pathname.startsWith('/retrospections/')
+  const isPost = pathname.startsWith('/posts/') || pathname.startsWith('/en/posts/')
+  const isRetrospection =
+    pathname.startsWith('/retrospections/') || pathname.startsWith('/en/retrospections/')
 
   if (isPost || isRetrospection) {
-    const slug = pathname.replace(/^\/(posts|retrospections)\//, '')
-    const viewedKey = `viewed_${slug}`
+    // /en/posts/slug 의 경우에도 기본 slug만 추출하여 한국어 글과 조회수를 합산
+    const slug = pathname.replace(/^\/(en\/)?(posts|retrospections)\//, '')
+
+    // _next/data 등의 내부 요청은 조회수 집계에서 제외
+    if (pathname.includes('/_next/')) {
+      return NextResponse.next()
+    }
+    const viewedKey = `viewed_${slug.replace(/\//g, '_')}` // 쿠키 키에 / 가 들어가지 않도록 치환
     const hasViewed = request.cookies.get(viewedKey)
 
     if (!hasViewed) {
@@ -80,5 +87,10 @@ async function incrementViews(slug: string) {
 }
 
 export const config = {
-  matcher: ['/posts/:path*', '/retrospections/:path*'],
+  matcher: [
+    '/posts/:path*',
+    '/en/posts/:path*',
+    '/retrospections/:path*',
+    '/en/retrospections/:path*',
+  ],
 }

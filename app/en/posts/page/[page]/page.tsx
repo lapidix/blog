@@ -13,7 +13,7 @@ export const metadata = genPageMetadata({
 })
 
 export async function generateStaticParams() {
-  const posts = allCoreContent(sortPosts(allBlogs.filter((p) => p.locale === 'ko')))
+  const posts = allCoreContent(sortPosts(allBlogs.filter((p) => p.locale === 'en')))
   const totalPages = Math.ceil(posts.length / POSTS_PER_PAGE)
   const paths = Array.from({ length: totalPages }, (_, i) => ({ page: (i + 1).toString() }))
 
@@ -22,7 +22,7 @@ export async function generateStaticParams() {
 
 export default function BlogPageWithPagination({ params }: { params: { page: string } }) {
   const author = allAuthors.find((p) => p.slug === 'default') as Authors
-  const posts = allCoreContent(sortPosts(allBlogs.filter((p) => p.locale === 'ko')))
+  const posts = allCoreContent(sortPosts(allBlogs.filter((p) => p.locale === 'en')))
   const pageNumber = parseInt(params.page)
   const totalPages = Math.ceil(posts.length / POSTS_PER_PAGE)
 

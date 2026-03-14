@@ -63,7 +63,6 @@
     "husky": "^8.0.0",
     "lint-staged": "^13.0.0",
     "next-i18next": "^14.0.3",
-    "next-intl": "^2.21.0",
     "prettier": "^3.0.0",
     "prettier-plugin-tailwindcss": "^0.4.1",
     "react-rough-notation": "^1.0.5",

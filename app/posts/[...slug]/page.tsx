@@ -28,8 +28,10 @@ export async function generateMetadata({
   params: { slug: string[] }
 }): Promise<Metadata> {
   const slug = decodeURI(params.slug.join('/'))
-  const sortedCoreContents = allCoreContent(sortPosts(allBlogs))
-  const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
+  const locale = 'ko'
+  const filteredBlogs = allBlogs.filter((p) => p.locale === locale || !p.locale)
+  const sortedCoreContents = allCoreContent(sortPosts(filteredBlogs))
+  const postIndex = sortedCoreContents.findIndex((p) => p.path.split('/').pop() === slug)
 
   if (postIndex === -1) {
     return {
@@ -38,7 +40,7 @@ export async function generateMetadata({
     }
   }
 
-  const post = allBlogs.find((p) => p.slug === slug)
+  const post = filteredBlogs.find((p) => p.slug === slug)
   if (!post) {
     return {
       title: 'Post Not Found',
@@ -64,7 +66,7 @@ export async function generateMetadata({
   }
 
   const keywords = post.tags || []
-  const postUrl = `${siteMetadata.siteUrl}/posts/${post.slug}`
+  const postUrl = `${siteMetadata.siteUrl}/posts/${post.path.split('/').pop()}`
   return {
     title: {
       absolute: post.title,
@@ -104,7 +106,7 @@ export async function generateMetadata({
   }
 }
 export const generateStaticParams = async () => {
-  const paths = allBlogs.map((p) => ({ slug: p.slug.split('/') }))
+  const paths = allBlogs.filter((p) => p.locale === 'ko' || !p.locale).map((p) => ({ slug: [p.path.split('/').pop()!] }))
 
   return paths
 }
@@ -112,20 +114,22 @@ export const generateStaticParams = async () => {
 // ISR Config
 export const revalidate = 300
 
-export default async function Page({ params }: { params: { slug: string[]; locale: string } }) {
+export default async function Page({ params }: { params: { slug: string[] } }) {
   const slug = decodeURI(params.slug.join('/'))
+  const locale = 'ko'
 
   // Filter out drafts in production
-  const sortedCoreContents = allCoreContent(sortPosts(allBlogs))
-  const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
+  const filteredBlogs = allBlogs.filter((p) => p.locale === locale || !p.locale) // locale 없는 것은 ko로 간주
+  const sortedCoreContents = allCoreContent(sortPosts(filteredBlogs))
+  const postIndex = sortedCoreContents.findIndex((p) => p.path.split('/').pop() === slug)
   if (postIndex === -1) {
     await capturePostNotFound(slug, 'blog_post', 'Page')
     notFound()
   }
 
-  const prev = sortedCoreContents[postIndex + 1]
-  const next = sortedCoreContents[postIndex - 1]
-  const post = allBlogs.find((p) => p.slug === slug)
+  const prev = postIndex > 0 ? sortedCoreContents[postIndex - 1] : undefined
+  const next = postIndex < sortedCoreContents.length - 1 ? sortedCoreContents[postIndex + 1] : undefined
+  const post = filteredBlogs.find((p) => p.path.split('/').pop() === slug)
 
   if (!post) {
     notFound()
@@ -139,7 +143,13 @@ export default async function Page({ params }: { params: { slug: string[]; local
   const jsonLd = post.structuredData
 
   // JSON-LD 구조화된 데이터 개선
-  const postUrl = `${siteMetadata.siteUrl}/posts/${post.slug}`
+  const postUrl = `${siteMetadata.siteUrl}/posts/${post.path.split('/').pop()}`
+  if (prev) {
+    prev.path = `posts/${prev.path.split('/').pop()}`
+  }
+  if (next) {
+    next.path = `posts/${next.path.split('/').pop()}`
+  }
   jsonLd['@context'] = 'https://schema.org'
   jsonLd['@type'] = 'BlogPosting'
   jsonLd['mainEntityOfPage'] = {

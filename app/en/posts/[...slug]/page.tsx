@@ -6,9 +6,10 @@ import siteMetadata from '@/data/siteMetadata'
 import PostBanner from '@/layouts/PostBanner'
 import PostLayout from '@/layouts/PostLayout'
 import PostSimple from '@/layouts/PostSimple'
+
 import { capturePostNotFound } from '@/libs/sentry-utils'
 import type { Authors } from 'contentlayer/generated'
-import { allAuthors, allRetrospections } from 'contentlayer/generated'
+import { allAuthors, allBlogs } from 'contentlayer/generated'
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { MDXLayoutRenderer } from 'pliny/mdx-components'
@@ -27,23 +28,23 @@ export async function generateMetadata({
   params: { slug: string[] }
 }): Promise<Metadata> {
   const slug = decodeURI(params.slug.join('/'))
-  const locale = 'ko'
-  const filteredRetrospections = allRetrospections.filter((p) => p.locale === locale)
-  const sortedCoreContents = allCoreContent(sortPosts(filteredRetrospections))
-  const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
+  const locale = 'en'
+  const filteredBlogs = allBlogs.filter((p) => p.locale === locale)
+  const sortedCoreContents = allCoreContent(sortPosts(filteredBlogs))
+  const postIndex = sortedCoreContents.findIndex((p) => p.path.split('/').pop() === slug)
 
   if (postIndex === -1) {
     return {
-      title: 'Retrospection Not Found',
-      description: 'The requested retrospection could not be found.',
+      title: 'Post Not Found',
+      description: 'The requested blog post could not be found.',
     }
   }
 
-  const post = filteredRetrospections.find((p) => p.slug === slug)
+  const post = filteredBlogs.find((p) => p.slug === slug)
   if (!post) {
     return {
-      title: 'Retrospection Not Found',
-      description: 'The requested retrospection could not be found.',
+      title: 'Post Not Found',
+      description: 'The requested blog post could not be found.',
     }
   }
 
@@ -65,7 +66,7 @@ export async function generateMetadata({
   }
 
   const keywords = post.tags || []
-  const postUrl = `${siteMetadata.siteUrl}/retrospections/${post.slug}`
+  const postUrl = `${siteMetadata.siteUrl}/en/posts/${post.path.split('/').pop()}`
   return {
     title: {
       absolute: post.title,
@@ -105,27 +106,31 @@ export async function generateMetadata({
   }
 }
 export const generateStaticParams = async () => {
-  const paths = allRetrospections.filter((p) => p.locale === 'ko' || !p.locale).map((p) => ({ slug: [p.path.split('/').pop()!] }))
+  const paths = allBlogs.filter((p) => p.locale === 'en').map((p) => ({ slug: [p.path.split('/').pop()!] }))
 
   return paths
 }
 
+// ISR Config
+export const revalidate = 300
+
 export default async function Page({ params }: { params: { slug: string[] } }) {
   const slug = decodeURI(params.slug.join('/'))
-  const locale = 'ko'
+  const locale = 'en'
 
   // Filter out drafts in production
-  const filteredRetrospections = allRetrospections.filter((p) => p.locale === locale)
-  const sortedCoreContents = allCoreContent(sortPosts(filteredRetrospections))
-  const postIndex = sortedCoreContents.findIndex((p) => p.slug === slug)
+  const filteredBlogs = allBlogs.filter((p) => p.locale === locale)
+  const sortedCoreContents = allCoreContent(sortPosts(filteredBlogs))
+  // 찾을 때는 slug만 비교
+  const postIndex = sortedCoreContents.findIndex((p) => p.path.split('/').pop() === slug)
   if (postIndex === -1) {
-    await capturePostNotFound(slug, 'retrospection_post', 'Page')
+    await capturePostNotFound(slug, 'blog_post', 'Page')
     notFound()
   }
 
-  const prev = sortedCoreContents[postIndex + 1]
-  const next = sortedCoreContents[postIndex - 1]
-  const post = filteredRetrospections.find((p) => p.slug === slug)
+  const prev = postIndex > 0 ? sortedCoreContents[postIndex - 1] : undefined
+  const next = postIndex < sortedCoreContents.length - 1 ? sortedCoreContents[postIndex + 1] : undefined
+  const post = filteredBlogs.find((p) => p.path.split('/').pop() === slug)
 
   if (!post) {
     notFound()
@@ -139,7 +144,13 @@ export default async function Page({ params }: { params: { slug: string[] } }) {
   const jsonLd = post.structuredData
 
   // JSON-LD 구조화된 데이터 개선
-  const postUrl = `${siteMetadata.siteUrl}/retrospections/${post.slug}`
+  const postUrl = `${siteMetadata.siteUrl}/en/posts/${post.path.split('/').pop()}`
+  if (prev) {
+    prev.path = `en/posts/${prev.path.split('/').pop()}`
+  }
+  if (next) {
+    next.path = `en/posts/${next.path.split('/').pop()}`
+  }
   jsonLd['@context'] = 'https://schema.org'
   jsonLd['@type'] = 'BlogPosting'
   jsonLd['mainEntityOfPage'] = {

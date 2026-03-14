@@ -14,7 +14,7 @@ export const metadata = genPageMetadata({
 
 export default function BlogPage() {
   const author = allAuthors.find((p) => p.slug === 'default') as Authors
-  const posts = allCoreContent(sortPosts(allBlogs))
+  const posts = allCoreContent(sortPosts(allBlogs.filter((p) => p.locale === 'ko')))
   const pageNumber = 1
   const initialDisplayPosts = posts.slice(
     POSTS_PER_PAGE * (pageNumber - 1),

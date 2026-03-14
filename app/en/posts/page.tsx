@@ -1,8 +1,8 @@
 import ListLayout from '@/layouts/ListLayoutWithTags'
+// import ListLayout from '@/layouts/ListLayout'
 import { Authors, allAuthors, allBlogs } from 'contentlayer/generated'
-import { notFound } from 'next/navigation'
 import { allCoreContent, sortPosts } from 'pliny/utils/contentlayer.js'
-import { genPageMetadata } from '../../../seo'
+import { genPageMetadata } from '../seo'
 
 const POSTS_PER_PAGE = 5
 
@@ -12,32 +12,17 @@ export const metadata = genPageMetadata({
   slug: 'posts',
 })
 
-export async function generateStaticParams() {
-  const posts = allCoreContent(sortPosts(allBlogs.filter((p) => p.locale === 'ko')))
-  const totalPages = Math.ceil(posts.length / POSTS_PER_PAGE)
-  const paths = Array.from({ length: totalPages }, (_, i) => ({ page: (i + 1).toString() }))
-
-  return paths
-}
-
-export default function BlogPageWithPagination({ params }: { params: { page: string } }) {
+export default function BlogPage() {
   const author = allAuthors.find((p) => p.slug === 'default') as Authors
-  const posts = allCoreContent(sortPosts(allBlogs.filter((p) => p.locale === 'ko')))
-  const pageNumber = parseInt(params.page)
-  const totalPages = Math.ceil(posts.length / POSTS_PER_PAGE)
-
-  if (pageNumber < 1 || pageNumber > totalPages) {
-    notFound()
-  }
-
+  const posts = allCoreContent(sortPosts(allBlogs.filter((p) => p.locale === 'en')))
+  const pageNumber = 1
   const initialDisplayPosts = posts.slice(
     POSTS_PER_PAGE * (pageNumber - 1),
     POSTS_PER_PAGE * pageNumber
   )
-
   const pagination = {
     currentPage: pageNumber,
-    totalPages: totalPages,
+    totalPages: Math.ceil(posts.length / POSTS_PER_PAGE),
   }
 
   return (
