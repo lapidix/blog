@@ -105,7 +105,9 @@ export async function generateMetadata({
   }
 }
 export const generateStaticParams = async () => {
-  const paths = allRetrospections.filter((p) => p.locale === 'ko' || !p.locale).map((p) => ({ slug: [p.path.split('/').pop()!] }))
+  const paths = allRetrospections
+    .filter((p) => p.locale === 'ko' || !p.locale)
+    .map((p) => ({ slug: [p.path.split('/').pop()!] }))
 
   return paths
 }

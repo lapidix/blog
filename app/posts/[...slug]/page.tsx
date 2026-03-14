@@ -106,7 +106,9 @@ export async function generateMetadata({
   }
 }
 export const generateStaticParams = async () => {
-  const paths = allBlogs.filter((p) => p.locale === 'ko' || !p.locale).map((p) => ({ slug: [p.path.split('/').pop()!] }))
+  const paths = allBlogs
+    .filter((p) => p.locale === 'ko' || !p.locale)
+    .map((p) => ({ slug: [p.path.split('/').pop()!] }))
 
   return paths
 }
@@ -128,7 +130,8 @@ export default async function Page({ params }: { params: { slug: string[] } }) {
   }
 
   const prev = postIndex > 0 ? sortedCoreContents[postIndex - 1] : undefined
-  const next = postIndex < sortedCoreContents.length - 1 ? sortedCoreContents[postIndex + 1] : undefined
+  const next =
+    postIndex < sortedCoreContents.length - 1 ? sortedCoreContents[postIndex + 1] : undefined
   const post = filteredBlogs.find((p) => p.path.split('/').pop() === slug)
 
   if (!post) {
