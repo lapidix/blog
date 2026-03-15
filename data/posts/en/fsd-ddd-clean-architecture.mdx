@@ -1,0 +1,910 @@
+---
+title: 'Frontend Clean Architecture (with FSD & DDD)'
+date: '2025-07-15'
+lastmod: '2025-07-15'
+tags: ['Clean-Architecture', 'Frontend', 'FSD', 'DDD', 'Next.js', 'React', 'TypeScript']
+draft: false
+summary: 'Exploring how to implement Clean Architecture in the frontend by combining Feature-Sliced Design (FSD) and Domain-Driven Design (DDD).'
+images: ['/static/images/fsd-ddd-clean-architecture/example-clean-architecture.png']
+canonicalUrl: 'https://lapidix.dev/en/posts/fsd-ddd-clean-architecture/'
+---
+
+<div className="max-w-[60%] mx-auto rounded-lg overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.15)] dark:shadow-[0_2px_12px_rgba(255,255,255,0.2)]">
+  <img
+    src="/static/images/fsd-ddd-clean-architecture/example-clean-architecture.png"
+    alt="example-clean-architecture"
+    className="m-0 block w-full"
+  />
+</div>
+
+<br />
+
+# 1. Introduction
+
+While working as a backend developer, I experienced firsthand the structural clarity and maintainability that **Domain-Driven Design (DDD)** and **Clean Architecture** can bring to a system.
+
+By structuring complex business logic around the domain and applying dependency inversion, it became much easier to write maintainable and testable code. That experience helped me appreciate the real value of these architectural patterns.
+
+Later, when I returned to frontend development and started using **Feature-Sliced Design (FSD)**, something felt familiar.  
+The `entities` layer in FSD felt very similar to a **domain layer**, and the philosophy of **clear responsibility separation and unidirectional dependencies** reminded me of Clean Architecture.
+
+So I started thinking:
+
+> _What if we applied DDD domain modeling and Clean Architecture inside the `entities` layer of FSD?_
+
+Instead of treating frontend logic as simple type definitions and API calls, could we **encapsulate domain logic and explicitly represent business rules in the frontend as well?**
+
+That curiosity became the starting point of this experiment.
+
+That said, **this approach is not suitable for every project**.  
+For small frontend applications, this level of architectural structure can easily become **over-engineering**. It introduces additional complexity, increases the learning curve, and excessive abstraction can reduce productivity.
+
+This article is essentially a record of a simple question I asked myself:
+
+> _"What would this architecture actually look like if implemented in a real frontend codebase?"_
+
+Instead of keeping the idea theoretical, I tried implementing it myself and documenting what I learned along the way.
+
+> _Example code is available here:_  
+> https://github.com/mingi3442/nextjs-fsd-ddd-example
+
+---
+
+# 2. Core Concepts of the Three Architecture Patterns
+
+Before diving into the implementation, let's briefly review the key ideas behind each architecture pattern.
+
+## 2-1 Feature-Sliced Design (FSD)
+
+**Feature-Sliced Design (FSD)** is an architectural methodology designed to manage the growing complexity of frontend applications.
+
+Traditional folder structures or component-based separation often struggle to scale in large projects. FSD addresses this by focusing on:
+
+- Clear separation between **business logic and UI**
+- **Feature-oriented development**
+- **Predictable dependency flow**
+
+A typical FSD structure looks like this:
+
+<div className="max-w-[60%] mx-auto rounded-lg overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.15)] dark:shadow-[0_2px_12px_rgba(255,255,255,0.2)]">
+  <img
+    src="/static/images/fsd-ddd-clean-architecture/fsd.jpg"
+    alt="FSD Architecture"
+    className="m-0 block w-full"
+  />
+</div>
+
+```text showLineNumbers=false
+src/
+├── shared/       # Reusable utilities, API clients
+├── entities/     # Business entities (User, Post, Comment)
+├── features/     # Business features (CreatePost, GetPosts)
+├── widgets/      # Independent UI blocks (PostListSection, MainHeader)
+├── pages/        # Page components
+└── app/          # Global app configuration, layouts
+```
+
+One of the core principles is that dependencies must always flow from top to bottom. In other words, upper layers can reference lower layers, but lower layers cannot directly reference upper layers.
+Furthermore, communication between layers is strictly managed through explicit interfaces via Public APIs (`index.ts`), and direct dependencies between slices within the same layer are prohibited by slice isolation.
+
+```typescript:src/features/post/hooks/useGetPosts.ts
+// Correct dependency direction
+import { PostService } from '../post/services' // Same slice
+import { Post } from '@/entities/post' // Lower layer
+```
+
+> The core value provided by FSD is **a clear dependency flow**. The unidirectional dependency principle makes code behavior predictable, and the clear responsibilities of each layer greatly improve maintainability.
+
+## 2-2 DDD (Domain-Driven Design)
+
+DDD is a methodology for representing complex business domains. Here, **Domain refers to the problem area the software intends to solve, meaning the business area**.
+For example, in a social network service, the domain includes concepts like feeds, users, and comments. The core of DDD is accurately representing this domain knowledge in code to bridge the gap between the software and the business.
+
+DDD is broadly divided into **Strategic Design** and **Tactical Design**.
+
+### Strategic Design
+
+**Strategic Design** is a macro-level architectural approach to understanding complex domains and dividing the system's boundaries. Its goal is to design the overall structure of the software system while considering business strategy and organizational structure. The main components are:
+
+- **Bounded Context**: Defines clear boundaries within which a model maintains consistency.
+- **Ubiquitous Language**: A common language used by both domain experts and developers.
+- **Context Map**: Defines the relationships and integration strategies between different contexts.
+
+### Tactical Design
+
+**Tactical Design** is the concrete methodology for implementing the domain at the actual code level. It provides various patterns to explicitly represent domain knowledge and business rules in code, aiming to structure business logic in a clear and maintainable way.
+The main components are:
+
+- **Entity**: A domain object that has a unique identifier and can change over its lifecycle. It's not just data, but an object with behavior that represents business rules through its methods.
+- **Value Object**: An immutable object without an identifier, distinguished solely by its value. It mainly encapsulates validation logic and explicitly represents domain concepts.
+- **Factory**: A pattern that encapsulates complex object creation logic. It guarantees the object's invariants and hides the complexity of creation from the client.
+- **Repository**: An interface that acts like a collection for domain objects. It abstracts the concrete implementation of the data store so that domain logic doesn't depend on the Infrastructure.
+- **Domain Service**: Handles domain logic that doesn't naturally belong to a specific Entity or Value Object. Used to coordinate multiple entities or process complex business rules.
+- **Aggregate**: A pattern that groups related domain objects (Entities, Value Objects, etc.) into a single unit and defines boundaries to ensure the consistency of that group. By restricting external access only through the Aggregate Root, domain consistency is maintained.
+
+> The essence of DDD is problem-centric design. Rather than focusing on technical concerns, it focuses on solving business problems, minimizing the gap between reality and software by reflecting the unique characteristics of each domain in the code.
+
+## 2-3 Clean Architecture
+
+Clean Architecture is an architectural pattern proposed by Robert C. Martin, whose **core philosophy is protecting business logic from the outside world**. Here, the **outside world refers to highly volatile technical details such as frameworks, databases, UIs, and external APIs**. The goal of Clean Architecture is to design the system through **Dependency Inversion** so that these technical changes do not affect the core business logic.
+
+### The 4-Layer Structure
+
+Clean Architecture consists of four concentric layers, each with clear responsibilities and roles.
+
+<div className="max-w-[60%] mx-auto rounded-lg overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.15)] dark:shadow-[0_2px_12px_rgba(255,255,255,0.2)]">
+  <img
+    src="/static/images/fsd-ddd-clean-architecture/the-clean-architecture.png"
+    alt="Clean Architecture"
+    className="m-0 block w-full"
+  />
+</div>
+
+#### **Entities (Enterprise Business Rules)**
+
+The innermost layer containing the core business rules. It represents pure business concepts and rules that exist independently of the application or system, and is least affected by external changes. For example, the rule "A username must only contain 3-20 letters, numbers, and underscores" is a core rule that remains unchanged regardless of the technology used.
+
+```typescript:/src/entities/user/core/user.domain.ts
+export class User implements UserEntity {
+  constructor(
+    private _id: string,
+    private _username: string,
+    private _email: string
+  ) {}
+
+  updateUsername(newUsername: string) {
+    if (!this.isValidUsername(newUsername)) {
+      throw BaseError.validation('Invalid username format')
+    }
+    this._username = newUsername
+  }
+
+  private isValidUsername(username: string): boolean {
+    return /^[a-zA-Z0-9_.]{3,20}$/.test(username)
+  }
+}
+```
+
+#### **Use Cases (Application Business Rules)**
+
+The layer that implements the core features of the application. It defines the specific services the system provides to the user and processes specific business logic using entities. It defines the inputs and outputs of the system and controls the application flow, but only communicates with external systems through interfaces, without depending on concrete implementations.
+
+```typescript:/src/features/user/services/user.service.ts
+import { UserMapper, UserRepository } from "@/entities/user";
+import { BaseError } from "@/shared/libs/errors";
+import type { UserProfileResult } from "../results";
+import type { UserUseCase } from "../usecase";
+
+export const UserService = (userRepository: UserRepository): UserUseCase => ({
+  getCurrentUserProfile: async (): Promise<UserProfileResult> => {
+    try {
+      const user = await userRepository.getCurrentUserProfile();
+      if (!user) {
+        throw new BaseError("Current user not found", "NotFound");
+      }
+      return UserMapper.toProfileDto(user);
+    } catch (error) {
+      console.error("Error fetching current user profile:", error);
+      if (error instanceof BaseError) {
+        throw error;
+      }
+      throw new BaseError("Failed to fetch current user profile", "FetchError");
+    }
+  },
+});
+
+```
+
+#### **Interface Adapters**
+
+The transformation layer between the outside world and the internal business logic. It converts incoming data from the outside into a format understood by Use Cases and Entities, and conversely, formats internal data as required by external systems. Repository implementations, API adapters, and data mappers belong here. The core idea is to isolate the internal logic so it remains unaffected even if the external data source changes.
+
+```typescript:/src/entities/user/infrastructure/repository/user.api.repository.ts
+import { BaseHttpClient } from "@/shared/libs/http";
+import { User, UserRepository } from "../../core";
+import { UserMapper } from "../../mapper";
+import { UserAdapter } from "../api";
+
+export class UserApiRepository implements UserRepository {
+  private api: ReturnType<typeof UserAdapter>;
+  constructor(httpClient: BaseHttpClient) {
+    this.api = UserAdapter(httpClient);
+  }
+  async getCurrentUserProfile(): Promise<User> {
+    try {
+      const response = await this.api.getCurrentProfile();
+      const user = UserMapper.toDomainFromProfile(response);
+      return user;
+    } catch (error) {
+      console.error("UserRepository getCurrentUserProfile Error:", error);
+      throw error;
+    }
+  }
+}
+
+```
+
+#### **Frameworks & Drivers**
+
+The outermost layer where concrete technical implementations such as web frameworks, databases, UIs, and external APIs reside. Changes in this layer should not affect the inner layers, and it handles the detailed implementation of the system.
+
+```typescript:/src/shared/libs/http/base.http.ts
+export class BaseHttpClient {
+  private baseURL: string
+
+  constructor(config: BaseHttpConfig) {
+    this.baseURL = config.baseURL
+  }
+
+  async get<T>(url: string, config: RequestInit = {}): Promise<ApiResponse<T>> {
+    return this.request<T>(url, { ...config, method: 'GET' })
+  }
+
+  async post<T>(url: string, data?: unknown, config: RequestInit = {}): Promise<ApiResponse<T>> {
+    return this.request<T>(url, {
+      ...config,
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+}
+```
+
+```typescript:src/shared/libs/http/index.ts
+export const httpClient = new BaseHttpClient({
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api',
+})
+```
+
+### Core Principles
+
+- **The Dependency Rule**: The most crucial principle of Clean Architecture. Source code dependencies must only point inward toward the center. The inner circles must not know anything about the outer circles. This blocks external changes from propagating inward, ensuring system stability.
+- **Boundary Separation**: The principle of separating concerns by defining clear interfaces between layers. Communication between layers is done strictly through well-defined interfaces, which guarantees the independence and testability of each layer.
+- **Inversion of Control**: High-level modules do not depend on low-level modules; instead, both depend on abstractions. This is a major difference from traditional layered architectures, allowing application logic to remain independent of Infrastructure, leading to a more flexible design.
+
+> What Clean Architecture strives for is **independence from external changes**. Even if the external API or UI framework changes, the business logic remains intact. In terms of testability, each layer can be tested independently through dependency injection.
+
+---
+
+# 3. Example Code Implementation
+
+## 3-1 Applying the FSD Structure
+
+### Layered Structure and Separation of Concerns
+
+```text showLineNumbers=false
+src/
+├── shared/       # Common utilities, API clients, Domain-based classes
+│   ├── api/      # API client, Query Client
+│   ├── domain/   # ValueObject abstract class
+│   ├── libs/     # Utilities like dates, error handling
+│   └── ui/       # Common UI components
+├── entities/     # Business entities
+│   ├── post/     # Post domain
+│   ├── comment/  # Comment domain
+│   └── user/     # User domain
+├── features/     # Application business logic
+│   ├── post/     # Post-related features
+│   └── user/     # User-related features
+├── widgets/      # Independent UI blocks
+├── pages/        # Page components
+└── app/          # Global app configuration
+```
+
+Each layer has clear responsibilities and boundaries, and the dependency direction is consistent. `shared` can be used anywhere, but `entities` is only imported by `features` or `widgets`. I also strictly followed the rule that slices must not reference each other. Through this, I established a stable structure free of circular dependencies.
+
+### Internal Slice Structure and Public API
+
+```text showLineNumbers=false
+entities/post/
+├── core/           # Domain logic
+│   ├── post.domain.ts     # Entity
+│   ├── post.factory.ts    # Factory
+│   └── post.repository.ts # Repository Interface
+├── infrastructure/ # External implementations
+│   ├── api/              # API Adapter
+│   ├── dto/              # External data structures
+│   └── repository/       # Repository Implementation
+├── mapper/         # Data transformation
+├── types/          # Type definitions
+└── index.ts        # Public API
+```
+
+```typescript:/src/entities/post/index.ts
+// Public API definition
+export { Post } from './core/post.domain'
+export { PostFactory } from './core/post.factory'
+export { PostRepository } from './core/post.repository'
+export { PostApiRepository } from './infrastructure/repository'
+export { PostMapper } from './mapper'
+export type { PostDto, PostEntity } from './types'
+```
+
+Each slice uses a **Barrel Export-based Public API pattern** to explicitly export only what is necessary via `index.ts` while hiding internal implementation details. This ensures strong encapsulation and establishes a stable module boundary where internal refactoring or structural changes do not affect external dependencies.
+
+## 3-2 Applying DDD Tactical Patterns
+
+### Domain
+
+```typescript:/src/entities/user/core/user.domain.ts
+import { UserEntity } from '@/entities/user/types/user.types'
+import { BaseError } from '@/shared/libs/errors'
+
+export class User implements UserEntity {
+  private _id: string
+  private _username: string
+  private _profileImage: string
+  private _age: number
+  private _email: string
+  // ...
+
+  updateUsername(newUsername: string) {
+    if (!this.isValidUsername(newUsername)) {
+      throw BaseError.validation('Invalid username format')
+    }
+    this._username = newUsername
+  }
+
+  private isValidUsername(username: string): boolean {
+    return /^[a-zA-Z0-9_.]{3,20}$/.test(username)
+  }
+}
+```
+
+The **Domain Entity** is a core component in the domain model that possesses a unique identifier and encapsulates business rules and behavior. Rather than being a simple data container, it is an object infused with domain knowledge, ensuring that business rules are explicitly expressed in the code.
+
+The `updateUsername()` method encapsulates the domain logic for validating username formats, fundamentally blocking state changes to invalid formats. This approach prevents business logic from scattering across the application and enables centralized management, where only the relevant Entity needs modification when domain rules change. Consequently, this enhances the explicitness of domain knowledge, code safety, and the consistency of business logic.
+
+### Value Object
+
+```typescript:/src/shared/domain/value-object.ts
+// ValueObject abstract class
+export abstract class ValueObject<T> {
+  protected readonly _value: T
+
+  constructor(value: T) {
+    this.validate(value)
+    this._value = this.deepFreeze(value)
+  }
+
+  // Ensures deep immutability (freezes nested objects)
+  private deepFreeze<U>(obj: U): U {
+    if (obj && typeof obj === 'object' && !Object.isFrozen(obj)) {
+      Object.freeze(obj)
+      Object.getOwnPropertyNames(obj).forEach((prop) => {
+        // @ts-expect-error - ignore index signature issues
+        const value = obj[prop]
+        if (
+          value !== null &&
+          (typeof value === 'object' || typeof value === 'function') &&
+          !Object.isFrozen(value)
+        ) {
+          this.deepFreeze(value)
+        }
+      })
+    }
+    return obj
+  }
+
+  protected abstract validate(value: T): void
+
+  public equals(other: ValueObject<T>): boolean {
+    if (other === null || other === undefined) return false
+    if (other.constructor !== this.constructor) return false
+    return this.equalsValue(other._value)
+  }
+
+  protected equalsValue(value: T): boolean {
+    if (typeof this._value === 'object' && this._value !== null) {
+      return JSON.stringify(this._value) === JSON.stringify(value)
+    }
+    return this._value === value
+  }
+
+  public get value(): T {
+    return this._value
+  }
+}
+```
+
+```typescript:/src/entities/comment/value-objects/comment-body.vo.ts
+export class CommentBody extends ValueObject<string> {
+  private static readonly MAX_LENGTH = 100
+
+  protected validate(value: string): void {
+    if (!value || !value.trim()) {
+      throw new Error('Comment body cannot be empty')
+    }
+
+    if (value.length > CommentBody.MAX_LENGTH) {
+      throw new Error(`Comment body cannot exceed ${CommentBody.MAX_LENGTH} characters`)
+    }
+  }
+
+  public get text(): string {
+    return this.value
+  }
+}
+```
+
+A Value Object is an immutable object in the domain model that lacks an identifier and is distinguished solely by its value.
+In this implementation, `deepFreeze()` guarantees complete immutability, even if nested objects or arrays are included.
+Validation is performed first in the constructor, and the object is made immutable only if the value is valid, enforcing type safety and domain rules.
+
+The `equals()` method safely handles equality comparisons, meaning if values are identical, they can be treated as the same object.
+Even when wrapping a simple string like `CommentBody`, business rules can be enforced at creation time.
+This design prevents mistakes caused by using primitive types, makes domain concepts explicit in the code, and ultimately significantly improves type safety, domain expressiveness, and runtime error prevention.
+
+### Factory
+
+```typescript:/src/entities/post/core/post.factory.ts
+export class PostFactory {
+  // Create a new post
+  static createNew(title: string, body: string, user: UserReference, image: string = ''): Post {
+    return new Post(
+      '', // ID will be assigned by the server for new posts
+      user,
+      title,
+      body,
+      image,
+      0, // Start with 0 likes
+      0, // Start with 0 comments
+      new Date().getTime(), // Creation time
+      new Date().getTime() // Modification time (same as creation)
+    )
+  }
+
+  // Restore a domain object from external data
+  static createFromDto(dto: PostDto): Post {
+    return new Post(
+      dto.id,
+      dto.user,
+      dto.title,
+      dto.body,
+      dto.image || '', // Handle defaults
+      dto.likes || 0, // Handle defaults
+      dto.totalComments || 0, // Handle defaults
+      dto.createdAt || new Date().getTime(),
+      dto.updatedAt || new Date().getTime()
+    )
+  }
+}
+```
+
+The Factory is a pattern designed to systematically manage the complex creation of domain objects. It encapsulates the various rules needed when creating a Post object—such as setting default values, validating data, and ensuring invariants—allowing client code to express clear intent without needing to know the specific creation logic.
+
+`createNew` handles the business rules for creating a new post. Domain knowledge, such as initializing like and comment counts to 0 and setting creation/modification times to the current time, is concentrated here. `createFromDto` safely converts data received from an external system into a domain object, handling default values for missing fields and verifying data consistency.
+
+This approach prevents object creation logic from scattering across the application and enables centralized management where only the Factory needs updating when creation-related business rules change. Ultimately, this enhances code consistency and maintainability.
+
+### Repository
+
+```typescript:/src/entities/comment/core/comment.repository.ts
+
+export interface CommentRepository {
+  getByPostId(postId: string): Promise<Comment[]>
+  getById(id: string): Promise<Comment>
+  create(comment: Comment): Promise<Comment>
+  update(comment: Comment): Promise<Comment>
+  save(comment: Comment): Promise<Comment>
+  delete(id: string): Promise<boolean>
+  like(id: string, userId: string): Promise<boolean>
+  unlike(id: string, userId: string): Promise<boolean>
+}
+```
+
+The Repository provides an interface that acts like a collection for domain objects, abstracting the concrete implementation of the data store. It defines data access methods from a domain perspective while completely hiding the specific API endpoints.
+
+I separated `like` and `unlike` into distinct methods because they are not just simple CRUD operations, but actions with clear business meaning. This approach ensures that the domain logic does not depend on infrastructure details and protects the domain layer from being affected when the data source changes. As a result, it enhances the purity of the domain logic, testability, and system flexibility.
+
+## 3-3 Applying Clean Architecture
+
+### Application Layer
+
+```typescript:/src/features/post/services/post.service.ts
+export const PostService = (
+  postRepository: PostRepository, // Depends on interface
+  commentRepository: CommentRepository,
+  userRepository: UserRepository
+): PostUseCase => ({
+
+  addPost: async (command: AddPostCommand): Promise<PostResult> => {
+    const { title, body, userId, image } = command;
+    try {
+      const user = await userRepository.getCurrentUserProfile();
+      if (!user) {
+        throw BaseError.notFound("User", "current");
+      }
+
+      const newPost = PostFactory.createNew(
+        title,
+        body,
+        {
+          id: user.id,
+          username: user.username,
+          profileImage: user.profileImage,
+        },
+        image
+      );
+      const createdPost = await postRepository.create(newPost);
+
+      if (!createdPost) {
+        throw BaseError.createFailed("Post");
+      }
+
+      return PostMapper.toDto(createdPost);
+    } catch (error) {
+      console.error(`Error creating new post with title "${title}":`, error);
+      if (error instanceof BaseError) {
+        throw error;
+      }
+      throw BaseError.createFailed("Post");
+    }
+  },
+
+  updatePost: async (command: UpdatePostCommand): Promise<PostResult> => {
+    const { id, title, body } = command;
+    try {
+      const existingPost = await postRepository.getById(id);
+      if (!existingPost) {
+        throw BaseError.notFound("Post", id);
+      }
+
+      existingPost.updateTitle(title);
+      existingPost.updateBody(body);
+
+      const updatedPost = await postRepository.update(existingPost);
+      if (!updatedPost) {
+        throw BaseError.updateFailed("Post", id);
+      }
+
+      return PostMapper.toDto(updatedPost);
+    } catch (error) {
+      console.error(`Error updating post with ID ${id}:`, error);
+      if (error instanceof BaseError) {
+        throw error;
+      }
+      throw BaseError.updateFailed("Post", id);
+    }
+  },
+})
+```
+
+The UseCase implements the specific features the application provides to the user, orchestrating multiple Repositories and utilizing the business logic of Entities. **Because all dependencies are injected via interfaces rather than relying on concrete implementations**, **it simultaneously secures flexibility and testability across various environments**.
+
+### Infrastructure Layer
+
+```typescript:/src/entities/post/infrastructure/repository/post.api.repository.ts
+export class PostApiRepository implements PostRepository {
+  private api: ReturnType<typeof PostAdapter>
+
+  constructor(httpClient: BaseHttpClient) {
+    this.api = PostAdapter(httpClient)
+  }
+
+  async getById(id: string): Promise<Post> {
+    try {
+      const postDto = await this.api.getById(id)
+      if (!postDto) {
+        throw new Error(`Post with ID ${id} not found`)
+      }
+      // Convert external API response to Domain model
+      return PostMapper.toDomain(postDto)
+    } catch (error) {
+      console.error(`Error fetching post with ID ${id}:`, error)
+      throw error
+    }
+  }
+
+  async create(post: Post): Promise<Post | null> {
+    try {
+      // Convert Domain model to API request format
+      const createDto = PostMapper.toCreateDto(post)
+      const result = await this.api.create(createDto)
+      if (!result) return null
+
+      return PostMapper.toDomain(result)
+    } catch (error) {
+      console.error(`Error creating post:`, error)
+      return null
+    }
+  }
+}
+```
+
+```typescript:/src/entities/post/mapper/post.mapper.ts
+export class PostMapper {
+  static toDomain(dto: PostDto): Post {
+    return new Post({
+      id: new PostId(dto.id),
+      title: dto.title,
+      body: dto.body,
+      user: UserMapper.toDomain(dto.user),
+      image: dto.image,
+      likes: dto.likes,
+      totalComments: dto.totalComments,
+      createdAt: dto.createdAt,
+      updatedAt: dto.updatedAt,
+    })
+  }
+
+  static toCreateDto(post: Post): CreatePostDto {
+    return {
+      title: post.title,
+      body: post.body,
+      userId: post.user.id,
+      image: post.image,
+    }
+  }
+
+  static toUpdateDto(post: Post): UpdatePostDto {
+    return {
+      id: post.id,
+      title: post.title,
+      body: post.body,
+      image: post.image,
+    }
+  }
+}
+```
+
+The **Repository Implementation** concretely implements the Repository interface defined by the domain, connecting the external data source (external API server) with the domain layer. The **Mapper** encapsulates the transformation logic between the external data structure and the internal domain model, isolating the domain logic from being directly affected by external system changes.
+
+Even if API specs change or data structures differ, the conversion logic is concentrated in the Mapper, minimizing the impact of these changes.
+
+### Layer Structure and Dependency Direction
+
+<div className="max-w-[60%] mx-auto rounded-lg overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.15)] dark:shadow-[0_2px_12px_rgba(255,255,255,0.2)]">
+  <img
+    src="/static/images/fsd-ddd-clean-architecture/example-clean-architecture.png"
+    alt="example-clean-architecture"
+    className="m-0 block w-full"
+  />
+</div>
+
+The diagram above maps the **FSD structure to the concentric circles of Clean Architecture** based on the actual example code. Each layer has clear roles and responsibilities, and dependencies always point inwards, as indicated by the dotted arrows. Here, (**I**) means Interface, and (**Impl**) means Implementation.
+
+**Enterprise Business Rules**
+
+- `Entities Domain Core`: Pure domain entities like Post and Comment. They encapsulate business rules and domain logic, completely unaware of the outside world.
+- `Entities Repository(I)`: An abstracted interface for the domain object store, defining data access methods from a domain perspective.
+
+**Application Business Rules**
+
+- `Features Usecase(I)`: Defines interfaces for application-specific business use cases, such as viewing posts or writing comments.
+- `Features Service(Impl)`: Implements the actual business logic, orchestrating multiple entities to process complex scenarios.
+
+**Interface Adapters**
+
+- `Features Hooks`: React custom hooks that serve as adapters between UI components and business logic.
+- `Entities Repository(Impl)`: The implementation responsible for actual API communication, adapting the domain interface to the external API.
+
+**Frameworks & Drivers**
+
+- `App, Pages, Widgets`: Handles Next.js-based UI components and page routing.
+- `External API Server`: The backend server that provides the actual data storage and business logic.
+
+By combining FSD, DDD, and Clean Architecture, I successfully applied an architecture where changes in external dependencies do not affect core logic. As a result, through clear separation of concerns and dependency inversion, I was able to build a flexible codebase structure highly adaptable to change.
+
+---
+
+# 4. Dilemmas Encountered During Implementation
+
+While transitioning from design to actual code, I encountered several ambiguous moments that were not considered during the design phase. I recorded what choices I made and why.
+
+## Is Converting All Data into Domain Models Always the Best Choice?
+
+Wrapping all data received from an API into domain objects felt somewhat unnatural during actual implementation.
+
+In particular, I questioned whether it was truly necessary—or rather an unnecessary process—to convert data into domain objects when it is merely meant to be displayed on the screen.
+
+```typescript
+// Handling a list of posts in PostService
+getAllPosts: async (query: GetPostsQuery = {}): Promise<PostListResult> => {
+  const q = query ?? {};
+  const limit = q.limit ?? 10;
+  const skip = q.skip ?? 0;
+  try {
+    const posts = await postRepository.getAll(limit, skip);
+    return {
+      data: PostMapper.toDtoList(posts),
+      pagination: {
+        limit,
+        skip,
+        total: posts.length,
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching post list:", error);
+    if (error instanceof BaseError) {
+      throw error;
+    }
+    throw new BaseError(`Failed to fetch post list`, "FetchError");
+  }
+},
+```
+
+I wondered if it was truly efficient to convert data like a post list, which is just shown on the screen, into domain objects.
+In reality, I think this could cause unnecessary overhead.
+
+Therefore, in practice, using only DTOs depending on the nature of the data and requirements might be more reasonable.
+
+However, the strengths of domain objects become very clear in situations like viewing a post's details, where business methods like `updateTitle()` or `likePost()` are needed.
+
+Additionally, I believe it greatly helps in minimizing the scope of changes when business logic is added later, writing tests, and securing type safety.
+
+> For this example codebase, with the purpose of experimenting with architectures and documenting patterns, I chose to consistently apply domain objects to all data.
+
+## Value Object Application Criteria: How Far Is Appropriate?
+
+When applying the `CommentBody` Value Object to the Comment entity, I had a lot of mixed feelings.
+
+```typescript:/src/entities/comment/value-objects/comment-body.vo.ts
+export class CommentBody extends ValueObject<string> {
+  private static readonly MAX_LENGTH = 100
+
+  protected validate(value: string): void {
+    if (!value || !value.trim()) {
+      throw new Error('Comment body cannot be empty')
+    }
+    if (value.length > CommentBody.MAX_LENGTH) {
+      throw new Error(`Comment body cannot exceed ${CommentBody.MAX_LENGTH} characters`)
+    }
+  }
+}
+```
+
+This time, I implemented CommentBody as a **Value Object** in the example code to explain and compare architectural patterns.
+
+Doing so definitely strengthened validation for comments.
+However, I questioned whether it was really necessary to wrap such a simple string attribute into a **Value Object**.
+
+For example, I didn't think it was necessary to separate everything into **Value Objects**, like a Post's title or body that require similar validation, alongside CommentBody.
+
+But recently, through conversations with backend developers around me, I've reconsidered the benefits of adopting Value Objects from the perspectives of TDD (Test-Driven Development), writing granular unit tests, and long-term scalability.
+
+Utilizing Value Objects makes it easier to write tests and groups domain rules in one place, increasing the cohesion and maintainability of the code. Also, it prompted me to rethink how it minimizes the scope of modifications when domain requirements change later.
+
+> I still think that for simple validation, handling it via Entity methods might be more practical. But considering testing strategies or domain scalability, my mind has changed to actively consider adopting the Value Object pattern.
+
+## Hooks Factory Pattern: Over-Abstraction?
+
+In the implemented structure, hooks act as Adapters connecting the UI and business logic.
+So, to maintain consistency and scalability in the Adapter layer, I debated whether to apply the Factory pattern to hooks as well, and ultimately reflected it in the example code.
+
+```typescript
+export const createPostHooks = (postUseCase: PostUseCase) => {
+  return {
+    useGetPosts: createUseGetPosts(postUseCase),
+    useGetPostById: createUseGetPostById(postUseCase),
+  }
+}
+```
+
+However, **after writing the actual code, I felt that managing up to the business layer with the Factory/Singleton pattern and implementing hooks directly by making them depend on each service was a way to minimize complexity while fully functioning as an Adapter**.
+
+> Ultimately, rather than enforcing uniform abstraction all the way to hooks, I felt it was more effective to prioritize practicality and maintainability, applying it only where necessary.
+
+## Repository Dependency Injection vs. Direct Import
+
+Both receiving a Repository via dependency injection in a Service and importing it directly from a file have their pros and cons.
+
+```typescript
+// Dependency Injection approach
+export const PostService = (
+  postRepository: PostRepository,
+  commentRepository: CommentRepository,
+  userRepository: UserRepository
+): PostUseCase => ({ ... });
+
+// Direct import approach
+import { postRepository } from '@/entities/post';
+const PostService = (): PostUseCase => ({ ... });
+```
+
+In frontend development, this structure can feel overly complex.
+But in this example, I focused on implementing pure architectural patterns that aren't tied to a specific library.
+Using dependency injection makes it easy to swap Repository implementations, allowing for flexible responses in testing and various environments.
+
+Technically, there's no huge difference in runtime behavior or performance between the two methods.
+However, the dependency injection method has advantages in maintainability and scalability because it facilitates the easy replacement of implementations across different environments.
+
+> In real-world practice, I believe it's important to choose the appropriate method based on project complexity, team experience, and long-term maintenance strategies.
+
+## The Aggregate Pattern in the Frontend
+
+When designing the relationship between Post and Comment, I considered introducing the Aggregate pattern recommended by DDD.
+
+```typescript
+// Managing as separate Entities
+const post = await postRepository.getById(id)
+const comments = await commentRepository.getByPostId(id)
+
+// Approach separating an Aggregate class
+
+class PostAggregate {
+  constructor(
+    private post: Post,
+    private comments: Comment[]
+  ) {}
+  addComment(comment: Comment): void {
+    this.comments.push(comment)
+    this.post.incrementCommentCount()
+  }
+}
+
+// Approach embedding the array directly inside the entity
+export class Post {
+  private _id: string
+  private _user: UserReference
+  private _title: string
+  private _body: string
+  private _comments: Comment[]
+  // ...
+
+  constructor(
+    id: string,
+    user: UserReference,
+    title: string,
+    body: string,
+    comments: Comment[] = []
+    // ...
+  ) {
+    this._id = id
+    this._user = user
+    this._title = title
+    this._body = body
+    this._comments = comments
+    // ...
+  }
+
+  get comments(): Comment[] {
+    return this._comments
+  }
+
+  addComment(comment: Comment): void {
+    this._comments.push(comment)
+    // Update other fields like totalComments if necessary
+  }
+
+  // ...
+}
+```
+
+From a DDD perspective, grouping Post and Comment into a single Aggregate to directly manage consistency might be recommended.
+
+However, in reality, **most consistency processing occurs on the server, so I don't think there's a strong need to directly guarantee data consistency on the frontend**.
+
+Therefore, on the frontend, simply using UseCases that orchestrate multiple Repositories is sufficient, and delegating complex consistency rules and transaction management to the server seems like a much more realistic and suitable choice.
+
+> For these reasons, in the example code, I decided it was more reasonable to manage Post and Comment as independent Entities and apply the Aggregate pattern on the server side instead.
+
+# 5. Conclusion
+
+Honestly, this example code is <u><b>a classic case of over-engineering</b></u>.
+
+Applying Repository patterns, Factories, Mappers, and Value Objects to simple features like displaying user information or querying a post list is clearly excessive complexity.
+
+Nevertheless, what I gained through this opportunity was <u><b>an expansion of my mindset</b></u>.
+
+Even if not a perfect implementation, I developed the perspective to view frontend code through the lens of DDD and Clean Architecture, and through this extreme example, I could clearly understand the role and value of each pattern. Above all, I got the chance to seriously ponder, "When can this level of complexity be justified?"
+
+Ultimately, the core question is, "Does the complexity solve the problem?" For simple CRUD or data display features, existing simple methods might be more suitable. But for features with complex business rules, frequent changes, and collaboration among multiple team members, this structural approach can provide much greater value in the long run.
+
+<u>
+  <b>
+    I realized this time that the true value of architectural patterns lies not in "perfect
+    implementation," but in providing a "framework of thought for writing better code."
+  </b>
+</u>
+
+**It was over-engineering born out of curiosity, but now I've developed a sense of "where it is needed and where it becomes excessive."**
+
+I hope these experiences and reflections provide a small guide for developers on a similar path regarding "when to introduce complexity"!
+
+### Reference
+
+- [Domain-Driven Architecture in the Frontend, Part 1 \| by Cesar Martinez \| Better Programming](https://medium.com/better-programming/domain-driven-architecture-in-the-frontend-i-d27fb71b5cb0)
+- [Does DDD Belong on the Frontend? - Domain-Driven Design w/ TypeScript \| Khalil Stemmler](https://khalilstemmler.com/articles/typescript-domain-driven-design/ddd-frontend/)
+- [DDD, Hexagonal, Onion, Clean, CQRS, … How I put it all together – @hgraca](https://herbertograca.com/2017/11/16/explicit-architecture-01-ddd-hexagonal-onion-clean-cqrs-how-i-put-it-all-together/)
+- [Clean Architecture on Frontend - DEV Community](https://dev.to/bespoyasov/clean-architecture-on-frontend-4311)
