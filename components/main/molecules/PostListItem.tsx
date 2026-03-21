@@ -24,7 +24,7 @@ const PostListItem = ({ post, author, index }: PostListItemProps) => {
   return (
     <Link
       href={href}
-      className="group flex items-center gap-2 p-2  transition-all duration-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+      className="group flex items-center gap-2 p-2  transition-all duration-300 hover:bg-zinc-200 dark:hover:bg-zinc-700"
     >
       {/* 썸네일 */}
       <div className="relative flex-shrink-0 w-16 h-16 rounded overflow-hidden shadow-sm">
@@ -38,7 +38,7 @@ const PostListItem = ({ post, author, index }: PostListItemProps) => {
 
       {/* 텍스트 콘텐츠 */}
       <div className="flex-1 min-w-0">
-        <h3 className="text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-200">
+        <h3 className="text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors duration-200">
           {typeof index === 'number' ? `${index + 1}. ${title}` : title}
         </h3>
 
@@ -56,7 +56,7 @@ const PostListItem = ({ post, author, index }: PostListItemProps) => {
       {/* 화살표 아이콘 */}
       <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         <svg
-          className="w-4 h-4 text-blue-600 dark:text-blue-400"
+          className="w-4 h-4 text-emerald-600 dark:text-emerald-400"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"

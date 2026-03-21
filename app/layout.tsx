@@ -144,7 +144,7 @@ export default function RootLayout({
         />
       </head>
 
-      <body className="bg-white text-black antialiased dark:bg-gray-800 dark:text-white">
+      <body className="bg-white text-black antialiased dark:bg-zinc-800 dark:text-white">
         <ThemeProviders>
           <Analytics />
           <GoogleAnalytics />

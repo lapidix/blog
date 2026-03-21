@@ -15,7 +15,7 @@ interface MainPostCardProps {
 const MainPostCard = ({ post, author }: MainPostCardProps) => {
   const { slug, date, title, summary, tags, images, type } = post
   return (
-    <div className="container rounded-xl h-full shadow-md bg-slate-200 dark:bg-slate-700 flex flex-col justify-center items-center p-4">
+    <div className="container rounded-xl h-full shadow-md bg-zinc-200 dark:bg-zinc-700 flex flex-col justify-center items-center p-4">
       <PostThumbnailWrapper
         title={title}
         slug={slug}

@@ -39,7 +39,7 @@ export function TypedIntroduceWrapper() {
   return (
     <div className="min-h-42 py-10">
       <span
-        className="text-lg leading-7 italic text-gray-700 dark:text-gray-100"
+        className="text-lg leading-7 italic text-zinc-700 dark:text-zinc-100"
         ref={typedRef}
       ></span>
     </div>

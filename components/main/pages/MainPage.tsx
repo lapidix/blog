@@ -27,10 +27,10 @@ export default function MainPage({
       <IntroduceContainer />
       <div className="flex flex-row items-start">
         <LatestPostContainer posts={latestPosts} author={author} />
-        <div className="hidden xl:flex flex-col sticky top-0 self-start min-w-72 divide-y divide-gray-200 dark:divide-gray-700">
+        <div className="hidden xl:flex flex-col sticky top-0 self-start min-w-72 divide-y divide-zinc-600 dark:divide-zinc-200">
           {/* Interested Tags */}
           <div className="py-6 px-4">
-            <RoughNotation type="underline" show color="#1d4ed8">
+            <RoughNotation type="underline" show color="#059669">
               <span className="text-lg font-bold">I Write About</span>
             </RoughNotation>
             <div className="flex flex-wrap gap-2 pt-6">
@@ -42,10 +42,10 @@ export default function MainPage({
 
           {/* Top Reads */}
           <div className="py-6 px-4">
-            <RoughNotation type="underline" show color="#1d4ed8">
+            <RoughNotation type="underline" show color="#059669">
               <span className="text-lg font-bold">Top Reads</span>
             </RoughNotation>
-            <div className="flex flex-col divide-y divide-gray-200 dark:divide-gray-700 pt-3">
+            <div className="flex flex-col divide-y divide-zinc-600 dark:divide-zinc-200 pt-3">
               {trendingPosts.slice(0, 5).map((post, index) => (
                 <PostListItem key={post.slug} post={post} author={author} index={index} />
               ))}
