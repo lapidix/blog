@@ -1,11 +1,10 @@
 import NavigationButton from '@/components/common/molecules/NavigationButton'
 import PostListItem from '@/components/main/molecules/PostListItem'
-import Tag from '@/components/tags/Tag'
 import { Authors, Blog, Retrospection } from 'contentlayer/generated'
 import { CoreContent } from 'pliny/utils/contentlayer.js'
 import { Fragment } from 'react'
 import { RoughNotation } from 'react-rough-notation'
-import IntroduceContainer from '../templates/IntroduceContainer'
+import Terminal from '../organisms/Terminal'
 import LatestPostContainer from '../templates/LatestPostContainer'
 
 const INTERESTED_TECH_TAGS = ['Cosmos', 'Go', 'Frontend', 'Blockchain']
@@ -24,49 +23,40 @@ export default function MainPage({
 }) {
   return (
     <Fragment>
-      <IntroduceContainer />
-      <div className="flex flex-row items-start">
-        <LatestPostContainer posts={latestPosts} author={author} />
-        <div className="hidden xl:flex flex-col sticky top-0 self-start min-w-72 divide-y divide-zinc-600 dark:divide-zinc-200">
-          {/* Interested Tags */}
-          <div className="py-6 px-4">
-            <RoughNotation type="underline" show color="#059669">
-              <span className="text-lg font-bold">I Write About</span>
-            </RoughNotation>
-            <div className="flex flex-wrap gap-2 pt-6">
-              {INTERESTED_TECH_TAGS.map((tag) => (
-                <Tag key={tag} text={tag} />
-              ))}
-            </div>
-          </div>
+      {/* Top: Terminal(left) | Top Reads(right) */}
+      <div className="flex flex-col xl:flex-row xl:items-stretch gap-0 xl:gap-4 border-b border-zinc-600 dark:border-zinc-200">
+        <div className="flex-1 min-w-0 flex flex-col">
+          <Terminal
+            posts={latestPosts}
+            trendingPosts={trendingPosts}
+            author={author}
+            tags={INTERESTED_TECH_TAGS}
+          />
+        </div>
 
-          {/* Top Reads */}
-          <div className="py-6 px-4">
-            <RoughNotation type="underline" show color="#059669">
-              <span className="text-lg font-bold">Top Reads</span>
-            </RoughNotation>
-            <div className="flex flex-col divide-y divide-zinc-600 dark:divide-zinc-200 pt-3">
-              {trendingPosts.slice(0, 5).map((post, index) => (
-                <PostListItem key={post.slug} post={post} author={author} index={index} />
-              ))}
-            </div>
-            <div className="flex justify-end text-base font-medium leading-6">
-              <NavigationButton
-                title="All Posts"
-                href="/posts"
-                color="primary"
-                isArrow={true}
-                buttonClassName="mt-4"
-              />
-            </div>
+        <div className="hidden xl:block xl:w-80 xl:flex-shrink-0 py-4 xl:py-6 px-2 xl:px-4 xl:border-l xl:border-zinc-600 xl:dark:border-zinc-200">
+          <RoughNotation type="underline" show color="#059669">
+            <span className="text-lg font-bold">Top Articles</span>
+          </RoughNotation>
+          <div className="flex flex-col divide-y divide-zinc-600 dark:divide-zinc-200 pt-3">
+            {trendingPosts.slice(0, 5).map((post, index) => (
+              <PostListItem key={post.slug} post={post} author={author} index={index} />
+            ))}
+          </div>
+          <div className="flex justify-end text-base font-medium leading-6">
+            <NavigationButton
+              title="All Articles"
+              href="/posts"
+              color="primary"
+              isArrow={true}
+              buttonClassName="mt-4"
+            />
           </div>
         </div>
       </div>
-      {/* {siteMetadata.newsletter?.provider && (
-        <div className="flex items-center justify-center pt-4">
-          <NewsletterForm />
-        </div>
-      )} */}
+
+      {/* Bottom: Latest Posts (full width, card grid) */}
+      <LatestPostContainer posts={latestPosts} author={author} />
     </Fragment>
   )
 }

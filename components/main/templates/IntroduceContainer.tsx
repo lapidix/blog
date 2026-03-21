@@ -1,14 +1,22 @@
-import GreetingTextWrapper from '../molecules/GreetingTextWrapper'
-import { TypedIntroduceWrapper } from '../organisms/TypedIntroduceWrapper'
+import { Authors, Blog, Retrospection } from 'contentlayer/generated'
+import { CoreContent } from 'pliny/utils/contentlayer.js'
+import Terminal from '../organisms/Terminal'
 
-const IntroduceContainer = () => {
+interface PostWithViews extends CoreContent<Blog | Retrospection> {
+  views: number
+}
+
+interface IntroduceContainerProps {
+  posts: CoreContent<Blog | Retrospection>[]
+  trendingPosts: PostWithViews[]
+  author: Authors
+  tags: string[]
+}
+
+const IntroduceContainer = ({ posts, trendingPosts, author, tags }: IntroduceContainerProps) => {
   return (
-    <div className="flex p-0 md:py-4 w-auto items-center justify-between h-auto border-b border-zinc-600 dark:border-zinc-200">
-      <div className="flex flex-col items-start justify-start h-auto flex-1">
-        <GreetingTextWrapper />
-        {/* <IntroduceTextWrapper /> */}
-        <TypedIntroduceWrapper />
-      </div>
+    <div className="w-auto border-b border-zinc-600 dark:border-zinc-200">
+      <Terminal posts={posts} trendingPosts={trendingPosts} author={author} tags={tags} />
     </div>
   )
 }

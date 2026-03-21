@@ -7,8 +7,8 @@ import { genPageMetadata } from '../seo'
 const POSTS_PER_PAGE = 5
 
 export const metadata = genPageMetadata({
-  title: 'Blog',
-  description: 'Collection of blog posts',
+  title: 'Lapidix Dev',
+  description: 'Collection of blog articles',
   slug: 'posts',
 })
 
@@ -31,7 +31,7 @@ export default function BlogPage() {
       posts={posts}
       initialDisplayPosts={initialDisplayPosts}
       pagination={pagination}
-      title="All Posts"
+      title="All Articles"
     />
   )
 }
