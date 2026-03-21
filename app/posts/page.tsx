@@ -7,7 +7,7 @@ import { genPageMetadata } from '../seo'
 const POSTS_PER_PAGE = 5
 
 export const metadata = genPageMetadata({
-  title: 'Lapidix Dev',
+  title: 'Articles',
   description: 'Collection of blog articles',
   slug: 'posts',
 })
