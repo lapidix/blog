@@ -256,7 +256,7 @@ export default function Terminal({ posts, trendingPosts, author, tags }: Termina
   }
 
   return (
-    <div className="w-full my-4 rounded-lg overflow-hidden shadow-lg dark:shadow-zinc-950/50 border border-zinc-200 dark:border-zinc-700 flex flex-col h-[480px]">
+    <div className="w-full  rounded-lg overflow-hidden shadow-lg dark:shadow-zinc-950/50 border border-zinc-200 dark:border-zinc-700 flex flex-col min-h-full h-[480px]">
       {/* Title bar */}
       <div
         className="flex items-center justify-between px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 select-none cursor-default flex-shrink-0"
