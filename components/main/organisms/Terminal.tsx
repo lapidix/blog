@@ -1,11 +1,12 @@
 'use client'
 
 import { terminalAbout, terminalContacts, terminalSkills } from '@/data/terminal'
+import { ASCII_LOGOS } from '@/data/terminal/terminal-logos'
 import { Authors, Blog, Retrospection } from 'contentlayer/generated'
 import { slug as slugify } from 'github-slugger'
 import Link from 'next/link'
 import { CoreContent } from 'pliny/utils/contentlayer.js'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 
 interface PostWithViews extends CoreContent<Blog | Retrospection> {
   views: number
@@ -18,7 +19,7 @@ interface TerminalProps {
   tags: string[]
 }
 
-type LineType = 'command' | 'output' | 'link' | 'blank'
+type LineType = 'command' | 'output' | 'link' | 'blank' | 'help-entry'
 
 interface TerminalLine {
   id: number
@@ -30,15 +31,75 @@ interface TerminalLine {
 const COMMANDS: Record<string, string> = {
   help: 'Show available commands',
   about: 'About me',
+  whoami: 'Who am I?',
   skills: 'Tech stack',
   articles: 'Latest articles',
-  top: 'Top articles',
+  latest: 'Most recent article',
+  'top-articles': 'Top articles',
+  random: 'Random article',
   tags: 'Browse by tags',
   contact: 'Get in touch',
+  neofetch: 'System info',
+  history: 'Command history',
+  pwd: 'Print working directory',
   clear: 'Clear terminal',
 }
 
-const SUGGESTED_COMMANDS = ['about', 'articles', 'top', 'skills', 'contact']
+const SUGGESTED_COMMANDS = ['about', 'articles', 'latest', 'top-articles', 'random', 'contact']
+
+const isValidCommand = (cmd: string) => {
+  const trimmed = cmd.trim().toLowerCase()
+  return trimmed in COMMANDS || trimmed.startsWith('sudo')
+}
+
+const TerminalLineItem = memo(function TerminalLineItem({ line }: { line: TerminalLine }) {
+  switch (line.type) {
+    case 'command':
+      return (
+        <div className={`flex items-center gap-2${line.id > 0 ? ' mt-1' : ''}`}>
+          <span className="text-emerald-700 dark:text-emerald-500 select-none">$</span>
+          <span className="text-blue-700 dark:text-blue-400">{line.text}</span>
+        </div>
+      )
+    case 'output':
+      return (
+        <div className="text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap break-words">
+          {line.text}
+        </div>
+      )
+    case 'link': {
+      const leadingSpaces = line.text.match(/^(\s*)/)?.[1] ?? ''
+      const linkText = line.text.trimStart()
+      return (
+        <div className="whitespace-pre-wrap break-words">
+          {leadingSpaces && <span>{leadingSpaces}</span>}
+          <Link
+            href={line.href!}
+            className="text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 hover:underline transition-colors"
+          >
+            {linkText}
+          </Link>
+        </div>
+      )
+    }
+    case 'help-entry': {
+      const [name, desc] = line.text.split('||')
+      return (
+        <div className="whitespace-pre-wrap break-words">
+          <span className="text-teal-700 dark:text-teal-400">
+            {'  '}
+            {name.padEnd(10)}
+          </span>
+          <span className="text-zinc-500 dark:text-zinc-400"> {desc}</span>
+        </div>
+      )
+    }
+    case 'blank':
+      return <div className="h-1" />
+    default:
+      return null
+  }
+})
 
 let lineIdCounter = 0
 function nextLineId() {
@@ -56,6 +117,9 @@ export default function Terminal({ posts, trendingPosts, author, tags }: Termina
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [initialized, setInitialized] = useState(false)
   const isComposing = useRef(false)
+
+  const [logoIndex, setLogoIndex] = useState(0)
+  const [mounted, setMounted] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -76,7 +140,7 @@ export default function Terminal({ posts, trendingPosts, author, tags }: Termina
             makeLine('output', 'Available commands:'),
             makeLine('blank', ''),
             ...Object.entries(COMMANDS).map(([name, desc]) =>
-              makeLine('output', `  ${name.padEnd(10)} ${desc}`)
+              makeLine('help-entry', `${name}||${desc}`)
             ),
           ]
 
@@ -106,7 +170,7 @@ export default function Terminal({ posts, trendingPosts, author, tags }: Termina
             makeLine('link', '  → View all articles', '/posts'),
           ]
 
-        case 'top':
+        case 'top-articles':
           if (!trendingPosts.length) return [makeLine('output', '  No trending articles yet.')]
           return [
             makeLine('output', '  Top Articles:'),
@@ -139,6 +203,51 @@ export default function Terminal({ posts, trendingPosts, author, tags }: Termina
             ),
           ]
 
+        case 'whoami':
+          return [makeLine('output', '  lapidix — Software Engineer')]
+
+        case 'pwd':
+          return [makeLine('output', '  ~/lapidix.dev')]
+
+        case 'latest': {
+          if (!posts.length) return [makeLine('output', '  No articles found.')]
+          const latest = posts[0]
+          const latestHref =
+            latest.type === 'Blog' ? `/posts/${latest.slug}` : `/retrospections/${latest.slug}`
+          return [
+            makeLine('output', '  Latest Article:'),
+            makeLine('blank', ''),
+            makeLine('link', `  ${latest.title}`, latestHref),
+          ]
+        }
+
+        case 'random': {
+          if (!posts.length) return [makeLine('output', '  No articles found.')]
+          const randomPost = posts[Math.floor(Math.random() * posts.length)]
+          const randomHref =
+            randomPost.type === 'Blog'
+              ? `/posts/${randomPost.slug}`
+              : `/retrospections/${randomPost.slug}`
+          return [
+            makeLine('output', '  Random pick:'),
+            makeLine('blank', ''),
+            makeLine('link', `  ${randomPost.title}`, randomHref),
+          ]
+        }
+
+        case 'neofetch':
+          return [
+            makeLine('output', '  lapidix@dev'),
+            makeLine('output', '  ──────────────────────'),
+            makeLine('output', `  Frontend  Next.js + React`),
+            makeLine('output', `  Language   TypeScript, Go`),
+            makeLine('output', `  Backend    Node.js`),
+            makeLine('output', `  Blockchain Cosmos SDK, IBC, CometBFT`),
+            makeLine('output', `  Infra      Docker, AWS`),
+            makeLine('output', `  Articles   ${posts.length} posts`),
+            makeLine('output', `  Tags       ${tags.length} tags`),
+          ]
+
         default:
           return [
             makeLine('output', `  command not found: ${cmd}`),
@@ -157,6 +266,33 @@ export default function Terminal({ posts, trendingPosts, author, tags }: Termina
       if (trimmed === 'clear') {
         setLines([])
         setInput('')
+        return
+      }
+
+      if (trimmed.startsWith('sudo')) {
+        const commandLine = makeLine('command', trimmed)
+        const output = [makeLine('output', '  Nice try ;)')]
+        setLines((prev) => [...prev, commandLine, ...output, makeLine('blank', '')])
+        setInput('')
+        if (trimmed !== commandHistory[commandHistory.length - 1]) {
+          setCommandHistory((prev) => [...prev, trimmed])
+        }
+        setHistoryIndex(-1)
+        return
+      }
+
+      if (trimmed === 'history') {
+        const commandLine = makeLine('command', trimmed)
+        const historyOutput =
+          commandHistory.length === 0
+            ? [makeLine('output', '  No commands in history.')]
+            : commandHistory.map((cmd, i) =>
+                makeLine('output', `  ${String(i + 1).padStart(4)}  ${cmd}`)
+              )
+        setLines((prev) => [...prev, commandLine, ...historyOutput, makeLine('blank', '')])
+        setInput('')
+        setCommandHistory((prev) => [...prev, trimmed])
+        setHistoryIndex(-1)
         return
       }
 
@@ -185,6 +321,12 @@ export default function Terminal({ posts, trendingPosts, author, tags }: Termina
   useEffect(() => {
     scrollToBottom()
   }, [lines, scrollToBottom])
+
+  useEffect(() => {
+    setLogoIndex(Math.floor(Math.random() * ASCII_LOGOS.length))
+    setMounted(true)
+    inputRef.current?.focus()
+  }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -219,42 +361,6 @@ export default function Terminal({ posts, trendingPosts, author, tags }: Termina
 
   const focusInput = () => inputRef.current?.focus()
 
-  const renderLine = (line: TerminalLine) => {
-    switch (line.type) {
-      case 'command':
-        return (
-          <div key={line.id} className="flex items-center gap-2">
-            <span className="text-emerald-600 dark:text-emerald-500 select-none">$</span>
-            <span className="text-zinc-900 dark:text-zinc-100">{line.text}</span>
-          </div>
-        )
-      case 'output':
-        return (
-          <div
-            key={line.id}
-            className="text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap break-words"
-          >
-            {line.text}
-          </div>
-        )
-      case 'link':
-        return (
-          <div key={line.id} className="whitespace-pre-wrap break-words">
-            <Link
-              href={line.href!}
-              className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 hover:underline transition-colors"
-            >
-              {line.text}
-            </Link>
-          </div>
-        )
-      case 'blank':
-        return <div key={line.id} className="h-1" />
-      default:
-        return null
-    }
-  }
-
   return (
     <div className="w-full  rounded-lg overflow-hidden shadow-lg dark:shadow-zinc-950/50 border border-zinc-200 dark:border-zinc-700 flex flex-col min-h-full h-[480px]">
       {/* Title bar */}
@@ -285,14 +391,21 @@ export default function Terminal({ posts, trendingPosts, author, tags }: Termina
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div
         ref={scrollRef}
-        className="bg-white dark:bg-zinc-900 p-4 font-mono text-sm leading-relaxed flex-1 min-h-[200px] overflow-y-auto cursor-text"
+        className="bg-white dark:bg-zinc-900 px-2 py-1 font-mono text-sm leading-relaxed flex-1 min-h-[200px] overflow-y-auto cursor-text"
         onClick={focusInput}
       >
-        {lines.map(renderLine)}
+        {mounted && (
+          <pre className="font-mono text-[10px] sm:text-xs text-emerald-700 dark:text-emerald-500 mb-4 leading-tight whitespace-pre overflow-hidden">
+            {ASCII_LOGOS[logoIndex]}
+          </pre>
+        )}
+        {lines.map((line) => (
+          <TerminalLineItem key={line.id} line={line} />
+        ))}
 
         {/* Input line */}
-        <div className="flex items-center gap-2">
-          <span className="text-emerald-600 dark:text-emerald-500 select-none">$</span>
+        <div className={`flex items-center gap-2${lines.length > 0 ? ' mt-1' : ''}`}>
+          <span className="text-emerald-700 dark:text-emerald-500 select-none">$</span>
           <div className="flex-1 relative">
             <input
               ref={inputRef}
@@ -319,7 +432,15 @@ export default function Terminal({ posts, trendingPosts, author, tags }: Termina
             <span className="absolute top-0 left-0 pointer-events-none whitespace-pre" aria-hidden>
               {input ? (
                 <>
-                  <span className="text-zinc-800 dark:text-zinc-50">{input}</span>
+                  <span
+                    className={
+                      isValidCommand(input)
+                        ? 'text-blue-700 dark:text-blue-400'
+                        : 'text-zinc-800 dark:text-zinc-50'
+                    }
+                  >
+                    {input}
+                  </span>
                   <span className="terminal-cursor inline-block w-[8px] h-[1.1em] bg-zinc-800 dark:bg-zinc-100 align-middle ml-px" />
                 </>
               ) : (
@@ -344,7 +465,7 @@ export default function Terminal({ posts, trendingPosts, author, tags }: Termina
           <button
             key={cmd}
             onClick={() => executeCommand(cmd)}
-            className="text-xs font-mono px-2.5 py-1 rounded-md bg-zinc-200/60 dark:bg-zinc-700/60 text-zinc-500 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+            className="text-xs font-mono px-2.5 py-1 rounded-md bg-zinc-200/60 dark:bg-zinc-700/60 text-zinc-500 dark:text-zinc-300 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
           >
             {cmd}
           </button>
