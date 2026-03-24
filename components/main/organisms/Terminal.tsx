@@ -395,7 +395,7 @@ export default function Terminal({ posts, trendingPosts, author, tags }: Termina
         onClick={focusInput}
       >
         {mounted && (
-          <pre className="font-mono text-[10px] sm:text-xs text-emerald-700 dark:text-emerald-500 mb-4 leading-tight whitespace-pre overflow-hidden">
+          <pre className="font-mono text-[10px] sm:text-xs text-emerald-700 dark:text-emerald-500 mb-4 leading-tight whitespace-pre overflow-hidden border-none box-shadow-none ">
             {ASCII_LOGOS[logoIndex]}
           </pre>
         )}

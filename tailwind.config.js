@@ -47,8 +47,17 @@ module.exports = {
               fontWeight: '600',
             },
             code: {
-              color: theme('colors.indigo.500'),
+              color: theme('colors.teal.800'),
+              backgroundColor: theme('colors.zinc.200'),
+              borderRadius: '0.25rem',
+              paddingLeft: '0.375rem',
+              paddingRight: '0.375rem',
+              paddingTop: '0.125rem',
+              paddingBottom: '0.125rem',
+              fontWeight: '600',
             },
+            'code::before': { content: 'none' },
+            'code::after': { content: 'none' },
           },
         },
         invert: {
@@ -62,6 +71,10 @@ module.exports = {
             },
             'h1,h2,h3,h4,h5,h6': {
               color: theme('colors.gray.100'),
+            },
+            code: {
+              color: theme('colors.zinc.200'),
+              backgroundColor: theme('colors.gray.700'),
             },
           },
         },

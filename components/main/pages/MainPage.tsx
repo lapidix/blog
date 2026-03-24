@@ -24,7 +24,7 @@ export default function MainPage({
   return (
     <Fragment>
       {/* Top: Terminal(left) | Top Reads(right) */}
-      <div className="flex flex-col xl:flex-row xl:items-stretch gap-0 xl:gap-4 border-b border-zinc-400 dark:border-zinc-200">
+      <div className="flex flex-col xl:flex-row xl:items-stretch gap-0 xl:gap-4 border-b border-zinc-200 dark:border-zinc-700">
         <div className="flex-1 min-w-0 flex flex-col pb-6 md:pb-4 ">
           <Terminal
             posts={latestPosts}
@@ -34,11 +34,11 @@ export default function MainPage({
           />
         </div>
 
-        <div className="hidden xl:block xl:w-80 xl:flex-shrink-0 py-2 xl:py-6 px-2 xl:px-4 xl:border-l xl:border-zinc-400 xl:dark:border-zinc-200">
+        <div className="hidden xl:block xl:w-80 xl:flex-shrink-0 py-2 xl:py-6 px-2 xl:px-4 xl:border-l xl:border-zinc-200 xl:dark:border-zinc-700">
           <RoughNotation type="underline" show color="#059669">
             <span className="text-lg font-bold">Top Articles</span>
           </RoughNotation>
-          <div className="flex flex-col divide-y divide-zinc-400 dark:divide-zinc-200 pt-4">
+          <div className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-700 pt-4">
             {trendingPosts.slice(0, 5).map((post, index) => (
               <PostListItem key={post.slug} post={post} author={author} index={index} />
             ))}
