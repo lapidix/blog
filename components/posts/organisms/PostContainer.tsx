@@ -53,7 +53,7 @@ export default function PostContainer({ post, author }: { post: BlogLike; author
               />
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap overflow-hidden">
+          <div className="mt-4 flex flex-wrap overflow-hidden max-h-[32px]">
             {tags.map((tag) => (
               <Tag className="mr-2 my-1" key={tag} text={tag} />
             ))}
