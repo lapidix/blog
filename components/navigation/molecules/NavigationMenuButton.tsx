@@ -9,10 +9,10 @@ const NavigationMenuButton = ({
   onToggleNav: () => void
 }) => {
   return (
-    <div key={link.title} className="px-12 py-4">
+    <div key={link.title} className="px-6 py-4">
       <Link
         href={link.href}
-        className="text-2xl font-bold tracking-widest text-gray-900 dark:text-gray-100"
+        className="text-xl font-bold tracking-widest text-zinc-900 dark:text-zinc-100"
         onClick={onToggleNav}
       >
         {link.title}
