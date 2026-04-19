@@ -1,0 +1,380 @@
+---
+title: '[Retrospection] Walrus Hackathon'
+date: '2025-12-16'
+lastmod: '2025-12-16'
+tags: ['Retrospection', 'Walrus', 'Sui', 'Hackathon', 'Web3']
+draft: false
+summary: 'Participated in the Walrus Hackathon.'
+images: ['/static/images/retrospection-thumbnail/retrospection-walrus.jpg']
+canonicalUrl: 'https://lapidix.dev/en/retrospections/walrus-hackathon'
+---
+
+![Walrus Hackathon](/static/images/retrospection-thumbnail/retrospection-walrus.jpg)
+
+# 1. Introduction
+
+It had already been a little over two months since I left my previous job.
+
+At first, my primary thought was to focus on resting this time.<br/>
+I had been working continuously, and I deliberately wanted to take a moment to catch my breath.
+However, as I continued with my existing study groups and academic society activities, time passed more quickly than expected.
+By the time November rolled around, I naturally began to think that I should gradually start preparing for job hunting again.
+
+While juggling interviews and take-home assignments,
+the topic of a hackathon came up in my crew team.
+The news was about an upcoming hackathon based on the Sui and Walrus networks,
+and one of our team members shared an idea first.
+
+Honestly, I had a lot of concerns at the time.
+It was a period when my schedule was overlapping with assignments and interviews following the resumes I had submitted. Also, it seemed highly likely that we would be competing against somewhat completed products in the hackathon.
+Above all, in a situation where I needed to continuously focus on job hunting, I worried that participating in a hackathon might unnecessarily distract my focus.
+
+Perhaps if I were alone, I wouldn't have stepped up easily. However, one of the team members was a long-time acquaintance,
+and the passion from the other members made me want to join them.
+
+**So, in the end, I decided to participate..!**
+
+As a result, a total of 5 members from the crew team participated in this hackathon.
+I had participated in ideathons a couple of times before, but this was my first hackathon where we actually proceeded with the implementation.
+Still, since it was conducted entirely online, it took a slightly different form from the typical <u>'gathering in one space and staying up all night'</u> hackathons you might imagine.
+
+Except for my long-time acquaintance and me, most of the team members had relatively short development careers, so **my acquaintance and I decided to lead the team**.
+
+<Info>
+### Walrus Hackathon?
+
+The hackathon we participated in this time was the [Walrus Haulout Hackathon](https://www.walrus.xyz/haulout) hosted by the Sui Foundation and the Walrus Foundation,
+an online hackathon based on the Sui ecosystem.
+
+This hackathon was directed towards building actually functioning projects utilizing major infrastructures of the Sui ecosystem, centering around Walrus, along with Seal, Nautilus, etc.
+
+The hackathon was held entirely online, and the format involved forming a team, designing and implementing a project, and submitting the final product within a set period.<br/>
+It definitely differed slightly in nature from a typical ideathon in that we had to create and submit a minimum viable product rather than stopping at proposing an idea.
+
+The topics were relatively free, but looking at the tracks, they encouraged directions that could well utilize the characteristics of Walrus and Sui, such as <u>Data, AI, Security & Privacy, and Authenticity Verification</u>.<br/>
+It seemed important to show how the given infrastructure could be utilized, rather than necessarily solving a specific problem.
+
+</Info>
+<br/>
+
+# 2. Sui, Walrus, and Seal
+
+The first thing I encountered while preparing for this hackathon was the relatively unfamiliar ecosystem of Sui, Walrus, and Seal.
+I was a bit more familiar with the Cosmos ecosystem and had some level of understanding of the Ethereum ecosystem, so Sui initially felt quite awkward.
+
+Because there were many differences starting from the design philosophy, it took time to understand the structure beyond simply learning how to use it.
+
+## 2-1. Sui
+
+Sui is a Layer 1 blockchain implemented in Rust, and smart contracts are written in the Move language.
+The biggest feature is that it has an Object-centric state model, rather than an Account-centric one.
+
+All states, such as tokens, NFTs, and various data, are managed as independent objects, and each object has a clear owner and modification rules.
+Because of this, you view state not as "storage space of an account," but as a "collection of mutually independent objects."
+
+The Move language itself is also unique; through its resource concept and ability system, it prevents resources from being arbitrarily copied or implicitly discarded at compile time.
+Thanks to this, bugs involving tokens being redundantly generated or unintentionally disappearing can be prevented at the language level.
+
+Owing to this object-centric structure, Sui can process transactions that only handle mutually independent objects in parallel.
+This serves as a huge advantage in terms of processing speed and scalability.
+
+On the other hand, if a transaction involves a **Shared Object** that multiple transactions need to access simultaneously, it must undergo Consensus to guarantee ordering for that object.
+In this case, the benefits of parallel processing are reduced compared to fast path transactions that are processed without consensus.
+
+<Tip>
+  **_Transactions involving shared objects are processed through consensus to guarantee ordering, which can cause delays compared to transactions using only independent objects._**
+</Tip>
+
+So, when designing contracts in Sui,
+you carefully decide early on, "Should I set this object as an Owned Object or a Shared Object?"
+
+If you have experience developing on EVM, I think the difference in perspective on viewing state, rather than the Move syntax itself, might make it feel more unfamiliar at first.
+
+## 2-2. Walrus
+
+Walrus is the decentralized storage network of the Sui ecosystem.
+It has a structure that stores large data, such as images, videos, and documents—which are burdensome to upload directly to the blockchain—and records only the reference information (blob ID) and metadata of that data on the Sui on-chain.
+
+At first, it seemed to play a role similar to IPFS,
+but Walrus differed in that it adopts a distributed storage structure based on erasure coding.
+
+**Instead of replicating the entire data to all nodes,
+it is designed to divide the data into several pieces, store them in a distributed manner, and allow recovery with only some of the pieces.**
+Thanks to this, data availability can be maintained even if some nodes go offline,
+and it holds advantages in terms of storage costs and network efficiency.
+
+Furthermore, since Walrus is tightly integrated with Sui,
+referencing or verifying the integrity of data stored in Walrus can be naturally handled within on-chain contracts.
+
+**I got the impression that rather than just a simple file repository, it is closer to a storage layer aimed at guaranteeing data availability and integrity in a decentralized environment.**
+
+Since this hackathon was centered around Walrus, determining "what data to place on-chain, and what data to entrust to Walrus" was a crucial point of the overall design.
+
+## 2-3. Seal
+
+Seal is a data security and access control layer used together with Walrus.
+If Walrus is in charge of "where to store the data,"
+Seal is in charge of "who can access the data, and under what conditions."
+
+Seal internally uses an encryption structure based on threshold encryption.
+**Data is stored in Walrus in an encrypted state, and the keys required for decryption are distributed and managed by Seal's key management entities (key servers).**
+
+For instance, only when satisfying conditions like holding a specific NFT, or having a specific address or role, are these key shards combined according to the policy to enable decryption.
+**This condition itself is defined and verified by Sui's on-chain logic.**
+
+Thanks to this, conditional access controls like "Only specific NFT holders can view this content" or "This document is only accessible to DAO members" can be expressed as on-chain policies.
+
+I felt the potential that using Walrus and Seal together could be applied to services where **privacy and access control are critical, such as membership content or private document sharing**, moving beyond simply storing data.
+
+# 3. Tusk
+
+The name of the project we developed during the hackathon is **Tusk**.
+
+Currently, on most recruitment platforms, job seekers' resumes are disclosed in a relatively public format.
+Recruiters or headhunters can view resumes without special restrictions,
+and I felt that in many cases, **job seekers' personal information is not adequately protected** during this process.
+
+**Also, from the job seeker's perspective, there may be experiences that are difficult to write in a public space.**<br/>
+For example, project experiences that are difficult to disclose externally yet, or histories that are hard to specify due to security, contracts, or organizational characteristics fall into this category.
+Even though such careers are undeniably important information, they are often excluded from resumes simply because they cannot be made public.
+
+**Consequently, I thought this is a loss for both the job seeker and the company.
+Because the job seeker cannot fully reveal their capabilities, and the likelihood of the company missing out on a more suitable talent increases.**
+
+Tusk started from the following problems:
+
+- **The difficulty of protecting personal information due to excessive exposure of job seekers' resumes.**
+- **The difficulty for job seekers to include "hard-to-disclose careers" in their resumes.**
+- **The fact that recruiters also have to search for talent using limited information.**
+
+Tusk aims to enable the recruitment process to proceed without completely disclosing the resume.
+
+The job seeker uploads their resume in an **encrypted format**.
+The original resume cannot be viewed by just anyone; instead, only preview information summarizing the content of the resume is generated via AI.
+
+Recruiters and headhunters can **search for the necessary talent** based on this AI preview.
+The search results display a list of job seekers meeting the conditions, along with each job seeker's AI preview.
+
+If a recruiter wishes to directly view a specific job seeker's resume, the recruiter can **request viewing permission** from that job seeker.
+**The job seeker can respond to this request by granting or denying it, and the recruiter can view the original resume only if permission is granted.**
+
+Through this structure, Tusk aimed to provide the following values:
+
+- Job seekers can effectively convey their capabilities while protecting their personal information.
+- Recruiters can search for talent more efficiently without exposing unnecessary information.
+- The initiative over whether to disclose the resume returns to the job seeker.
+
+Ultimately, Tusk is a project that aims to **simultaneously improve the protection of job seekers' personal information and the efficiency of recruiters' talent search**.
+
+<Note>
+### Why Web3?
+
+When defining the problems above, I also thought, <u>"Do we necessarily have to use blockchain?"</u>
+However, if such a structure were used on a specific platform operating central servers, it would inevitably result in a structure where the platform ultimately owns the job seeker's resume, rather than the job seeker feeling like they own it. Hence, I believed blockchain was essential.<br/>
+
+Additionally, the history of resume viewing requests, grants, and denials is crucial information for both job seekers and recruiters, and there is a potential for disputes to arise later.
+To ensure that these records are not arbitrarily modified or deleted, I believe a structure resistant to forgery and alteration is needed.
+
+The Sui blockchain can clearly manage states like resume viewing permissions on an object basis,
+and it can transparently leave a history of permission changes, which I thought was an excellent fit for the problem definition above.
+Also, when using Walrus and Seal together, the original resume data could be securely stored externally while
+separating access control and permission management into on-chain logic.
+
+**Ultimately, the reason for using Web3 in Tusk was not decentralization for its own sake, but to structurally secure the reliability of permission management and records.**
+
+</Note>
+
+<br />
+
+# 4. What I did
+
+Because I decided to lead the team during the hackathon, **along with my acquaintance, I was in charge of Tusk's overall system architecture and scenario-based flow design, frontend development and deployment, and documentation**.
+
+The architecture was designed by dividing it into a total of five stages based on the **user behavior flow (scenario)**.
+
+## 4-1 Architecture Design
+
+While designing the project's overall system architecture, I spent a lot of time first building an understanding of Sui, Walrus, and Seal.<br/>
+Initially, it wasn't even clear what problems each component existed to solve, so merely reading the documents didn't help in mapping out the structure well.
+However, thanks to this process, I was able to deeply contemplate how to combine multiple layers with separated roles rather than a single system, and how to design data storage and access control in a decentralized environment.
+
+### Job Seeker Registration and Resume Upload
+
+<figure className="flex flex-col items-center justify-center">
+  <img src="/static/images/walrus-hackathon/flow-architecture-1.png" alt="Flow Architecture 1" />
+  <figcaption className="text-center text-sm text-gray-300 mt-2 font-bold">
+    Flow Architecture 1
+  </figcaption>
+</figure>
+
+The core of this stage is to **ensure that the original resume is not disclosed from start to finish** to unauthorized individuals.
+
+When a job seeker uploads their resume, an Access Policy Object that manages the access permissions for that resume is created via the Access Policy Contract on the Sui network.
+Through this, the resume access policy was designed to be clearly recorded on the blockchain, not on a central server.
+
+Afterwards, the resume is encrypted on the client side using the Seal SDK.
+The keys used for encryption are distributed and stored across Seal Key Servers, and only the encrypted resume file is uploaded to the Walrus network.
+
+The content of the resume is analyzed by AI, labeled with metadata such as job title and tech stack, and transformed and stored as vector embedding data for search purposes.
+
+By clearly separating the original resume data and the metadata for search, we aimed to structurally minimize the possibility of personal information exposure.
+
+### Recruiter Search
+
+<figure className="flex flex-col items-center justify-center">
+  <img src="/static/images/walrus-hackathon/flow-architecture-2.png" alt="Flow Architecture 2" />
+  <figcaption className="text-center text-sm text-gray-300 mt-2 font-bold">
+    Flow Architecture 2
+  </figcaption>
+</figure>
+
+Recruiters can search for job seekers based on their criteria.
+The information used at this time is not the original resume, but the AI-generated preview and vector embedding data.
+
+The search query is converted into a vector, and a list of job seekers meeting the criteria is returned through a similarity search with the stored resume preview vectors.
+
+During this process, the information recruiters can check is restricted to the bare minimum with sensitive information removed.
+Through this, we aimed to lower the possibility of personal information exposure as much as possible in the search stage.
+
+We separated the process so that only the "probability of a match" could be determined during the search stage, while actual data access strictly required a separate permission request.
+
+### Access Permission Request
+
+<figure className="flex flex-col items-center justify-center">
+  <img src="/static/images/walrus-hackathon/flow-architecture-3.png" alt="Flow Architecture 3" />
+  <figcaption className="text-center text-sm text-gray-300 mt-2 font-bold">
+    Flow Architecture 3
+  </figcaption>
+</figure>
+
+If a recruiter wishes to directly check the resume of a specific job seeker after reviewing the search results, the recruiter can send a viewing request to that job seeker.
+
+This request updates the Access Policy via the Access Policy Contract existing on the Sui network, recording on-chain who requested access to which resume and when.
+
+By managing the viewing request itself as an on-chain state, we sought to minimize the possibility of forgery or alteration of the request history.
+
+### Job Seeker's Approval or Rejection
+
+<figure className="flex flex-col items-center justify-center">
+  <img src="/static/images/walrus-hackathon/flow-architecture-4.png" alt="Flow Architecture 4" />
+  <figcaption className="text-center text-sm text-gray-300 mt-2 font-bold">
+    Flow Architecture 4
+  </figcaption>
+</figure>
+
+The job seeker can check the incoming viewing request and choose to approve or reject it.
+
+Upon approval or rejection, the Access Policy Contract on the Sui network is executed, and the access policy for the corresponding resume is updated.
+
+This proceeds in a way that the central server cannot arbitrarily manipulate or interfere with whether permission is granted.
+
+Through this, we aimed to clearly attribute the final decision-making authority regarding access permissions to the job seeker themselves.
+
+### Approved Recruiter's Resume Viewing
+
+<figure className="flex flex-col items-center justify-center">
+  <img src="/static/images/walrus-hackathon/flow-architecture-5.png" alt="Flow Architecture 5" />
+  <figcaption className="text-center text-sm text-gray-300 mt-2 font-bold">
+    Flow Architecture 5
+  </figcaption>
+</figure>
+
+Accessing the encrypted resume itself might be possible through Walrus, but since decryption must go through the Seal Server, the recruiter can decrypt the encrypted resume on the Walrus network only when viewing permission is approved.
+
+At this time, the Seal Key Server verifies the policy state on the Sui network and returns the decryption key only when the permission is confirmed.
+
+By separating data storage (Walrus) and access control (Sui/Seal), we aimed to minimize reliance on any single component.
+
+Consequently, unauthorized users technically cannot access the original resume either, and we aimed to create a flow where access control is structurally guaranteed.
+
+## 4-2 Frontend Development and Deployment
+
+While proceeding with the hackathon, I had thoughts of actively utilizing tech stacks I normally didn't use.
+However, because I had to juggle job hunting and complete the project within a limited timeframe, I mainly handled the overall frontend initial setup, landing page development, and deployment.
+
+Given the nature of hackathons where first impressions are vital, I actively utilized React Bits for the UI of the landing page.
+Also, fitting the characteristics of a landing page without much business logic, I structured the screen using the Atomic Design Pattern.
+
+During the frontend development process, I directly designed and implemented the Provider setup for connecting the Sui network and Slush Wallet, network connection configurations, and state management structures.
+I also configured custom hooks for wallet connection to operate on top of this structure, enabling team members to develop Web3 features right away without separate environment setups later.
+
+Deployment was carried out via Vercel, and by configuring a subdomain on a personal domain I was already operating, I set it up to be accessible at `https://tusk.lapidix.dev` so the project results could be viewed stably.
+
+After deployment, I conducted QA based on the overall user flow, inspecting the features and screens,
+and directly modified and improved any deficient UI/UX aspects or awkward points in the operation flow discovered during this process.
+
+## 4-3 Documentation
+
+Judging that it would be efficient for the person leading the project design to also handle the documentation, I took charge of writing the README.
+
+In the README, I focused on summarizing the project's problem definition and justification, how we resolved the issue, and how the system operates by user scenarios.
+
+Since an English document was needed, I wrote it with the help of translation tools, focusing on organizing it so that anyone from the outside could understand the overall flow of the project.
+
+# 5. Limitations
+
+Tusk was a project focused on verifying the overall structure and flow within the limited time and resources of a hackathon.
+During that process, clear limitations emerged, and there were definitely aspects that must be considered if it were to expand into an actual service.
+
+## **5-1. Absence of Recruiter Trust and Verification Structure**
+
+Currently, Tusk uses a structure that identifies recruiters through wallet connection on the client side.
+While this method is simple to implement and fits well with the Web3 environment, there is no verification or indexing regarding whether the user actually belongs to a certain company, or if they are an entity that can request access permissions representing that company.
+This is an important indicator for the job seeker's permission granting, but it is currently absent.
+
+Considering the actual recruitment environment, I think this could lead to trust issues from the job seeker's perspective.
+If the recruiter's affiliation and identity could be verified through KYC or corporate authentication procedures, the reliability of the viewing request could be elevated to the next level.
+
+However, if such a structure is introduced, a database structure to manage user and corporate information would become necessary, leading to a clear trade-off between the level of decentralization and user convenience.
+Nevertheless, I felt this was an area that absolutely must be considered if developing it into a real service.
+
+## **5-2. Limitations of AI Preview and Search Accuracy**
+
+In Tusk, job seeker searches are performed based on AI-generated previews and vector embedding data to avoid directly exposing the original resumes.
+
+While I think the overall direction is suitable, because the amount of actual data we could secure during the hackathon period was very limited, we couldn't sufficiently verify or refine the quality of the previews or the search accuracy.
+
+It was true that we lacked both data and time to meticulously reflect job-specific characteristics, career depth, and the importance of tech stacks.
+
+I felt this was closer to a regret regarding data accumulation and operations rather than a structural problem.
+
+## **5-3. Simplicity of the Access Permission Policy**
+
+In the current structure, it is designed so that viewing permissions are granted or denied on a per-resume basis.
+While it was a clear and easy-to-understand structure within the scope of the hackathon, it might feel somewhat overly simplistic in a real recruitment process.
+
+There is a high possibility that more granular access permission policies are needed, such as disclosing only specific sections of a resume, granting viewing permissions only for a certain period, or providing one-time viewing access.
+
+By utilizing Sui's object model, I believe it would be possible to separate and expand access permissions into smaller units of policy objects.
+
+## **5-4. Regrets Regarding User Experience (UX)**
+
+Because we prioritized structural issues like security and access control in this project, we relatively couldn't invest much time into UX improvements.
+
+I felt there was a lot of room for improvement from a real user's perspective, such as the access request status not being intuitively visible, or the lack of feedback following an approval or rejection.
+
+I believe that alongside technical safety measures, a UX that helps users understand and trust the flow is also a crucial element.
+
+# 6. Conclusion
+
+This hackathon was a great experience where I could understand the new tech stack of Sui, Walrus, and Seal.
+
+Through the hackathon, I was able to feel once again how important and fun the process of thinking about how to define a problem and **what structure to use to solve that problem is, rather than just simply implementing features.**
+
+**Especially taking on the role of leading the team, I tangibly realized that judging how to allocate time and resources, alongside technical choices, is a very important role.**
+
+Tusk was closer to a prototype that verified the possibility of solving resume access permissions and personal information protection in this manner, rather than a completed service.
+
+Rather, I think it was a sufficiently meaningful outcome for a hackathon project in that the limitations and directions for supplementation were revealed relatively clearly.
+
+**~~Although the results haven't come out yet~~ Regardless of the results, experiencing the entire project process from architecture design to implementation, deployment, QA, and documentation made it a personally very meaningful and fun experience!**
+
+<Info>
+
+_Shortly after writing this post, Tusk was selected for **Best Technical Implementation**!_<br />
+_Thanks to that, I could wrap up the year on a high note, and I am truly grateful to the team members who ran alongside me!!_
+
+- [Winner Announcement](https://www.walrus.xyz/blog/haulout-hackathon-winners-2025)
+- [Participant Handbook](https://mystenlabs.notion.site/Walrus-Haulout-Hackathon-Participant-Handbook-2886d9dcb4e980e2adc1d047a95dfef8)
+
+</Info>
