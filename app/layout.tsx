@@ -142,6 +142,27 @@ export default function RootLayout({
             }),
           }}
         />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'Person',
+              name: siteMetadata.author,
+              url: siteMetadata.siteUrl,
+              email: siteMetadata.email,
+              jobTitle: 'Web Developer',
+              worksFor: {
+                '@type': 'Organization',
+                name: 'OpusM Inc',
+              },
+              image: `${siteMetadata.siteUrl}/static/images/profile.jpeg`,
+              sameAs: [siteMetadata.github, siteMetadata.linkedin, siteMetadata.twitter].filter(
+                Boolean
+              ),
+            }),
+          }}
+        />
       </head>
 
       <body className="bg-white text-black antialiased dark:bg-zinc-800 dark:text-white">
