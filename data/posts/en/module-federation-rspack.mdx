@@ -1,0 +1,507 @@
+---
+title: 'Module Federation with Rspack'
+date: '2026-03-05'
+lastmod: '2026-03-05'
+tags: ['Module Federation', 'Rspack', 'Webpack', 'Frontend', 'Vite']
+draft: false
+summary: 'I summarized the process of implementing Module Federation using Rspack.'
+images: ['/static/images/thumbnail/module-federation-rspack.png']
+canonicalUrl: 'https://lapidix.dev/en/posts/module-federation-rspack/'
+---
+
+![Module Federation with Rspack](/static/images/thumbnail/module-federation-rspack.png)
+
+## 1. Introduction
+
+The application of the team I am in can be delivered to customers in two forms.
+
+It can be run as a standalone application, or it operates as part of an integrated application where multiple in-house products are bundled together.
+
+However, when I joined this team, development was proceeding based on the premise that this product would only be used as a standalone application. So the frontend was also designed based on one application, one bundle, and one deployment flow. Therefore, the existing architecture developed using Vite was a very natural choice at the time.
+
+But in this versioning, we received a requirement that our product should be included within an integrated application.
+
+Other teams' applications, excluding ours, were already integrated into the integrated application, and the architecture assumed that each team's application would be loaded like a module within it.
+
+The integrated application was already operating under a Micro Frontend architecture, where each product is developed and deployed independently, but at runtime, they are combined as a single application.
+
+Therefore, we had to improve the existing structure, which assumed only standalone execution, to also support the integrated environment!
+
+To do this, we proceeded with a migration, and during this process, we switched the bundler from Vite to Rspack and introduced Module Federation.
+
+Let's learn about Module Federation and Rspack along with the migration process I carried out!
+
+---
+
+## 2. Micro Frontend
+
+### 2.1 What is Micro Frontend
+
+First, as the word implies, Micro Frontend applies the concept of microservices architecture to the frontend.
+
+In a normal traditional monolithic frontend, one massive codebase handles the entire UI.
+On the other hand, in a Micro Frontend, the entire application is split into multiple independent frontend applications, and they are combined into a single screen at runtime.
+
+<figure className="flex flex-col items-center justify-center">
+  <img
+    src="/static/images/module-federation-rspack/monolithic-vs-micro-frontend.png"
+    alt="Micro Frontend"
+  />
+  <figcaption className="text-center text-sm text-gray-300 mt-2 font-bold">
+    Monolithic Frontend vs Micro Frontend
+  </figcaption>
+</figure>
+
+The Micro Frontend architecture has the following advantages:
+
+- Independent development is possible because each team can develop and maintain only their area.
+- A change by one team does not affect the deployment of other teams.
+- If necessary, each app can use a different framework, so the tech stack is flexible.
+- Gradual migration is possible, allowing legacy systems to be transitioned bit by bit rather than all at once.
+
+### 2.2 Architecture of the Integrated Application UI
+
+First, the integrated application, which had been operating in a Micro Frontend architecture even before I joined, simply has this structure:
+
+<figure className="flex flex-col items-center justify-center">
+  <img
+    src="/static/images/module-federation-rspack/integration-application.png"
+    alt="Micro Frontend"
+  />
+  <figcaption className="text-center text-sm text-gray-300 mt-2 font-bold">
+    Integration App Architecture
+  </figcaption>
+</figure>
+
+The Host App, which is the integrated application, provides common features like window management, switching between apps, and authentication, and dynamically loads each Remote App when needed.
+
+Each Remote App is developed by an independent team and has its own deployment pipeline. At runtime, they act like a single application within the Host App.
+
+### 2.3 Runtime Integration and Method Selection
+
+The ways to combine multiple apps into a single UI can largely be divided into two methods.
+
+First, **Build-Time Integration** is a method of turning all applications into npm packages and combining them at build time.
+
+```bash:Shell showLineNumbers=false
+  npm install @company/app-a @company/app-b @company/app-c
+```
+
+Alternatively, **Runtime Integration** is a method of building each application independently and loading them dynamically at runtime.
+
+```ts:load-remote-app.ts
+const AppA = await loadRemoteApp('https://app-a.example.com/remoteEntry.js')
+```
+
+For simple apps, it might be better to integrate at build time, but as the size of each application grows, integrating at runtime might be a better method. A simple tabular comparison is as follows:
+
+|               | Build-Time Integration                                | Runtime Integration                                                        |
+| ------------- | ----------------------------------------------------- | -------------------------------------------------------------------------- |
+| Deployment    | Modifying a Remote requires rebuilding the Host       | If there's no change to the Host, only the Remote needs to be deployed     |
+| Bundle Size   | All apps are bundled into one                         | Only the necessary apps are loaded                                         |
+
+The integration of our team's application also had to be configured using the runtime integration method, considering the existing context.
+
+Among the runtime integration methods, there are three representative ways:
+
+```html:iframe.html
+<!-- iframe  -->
+<!-- Provides complete isolation, but sharing styles is difficult, communication between apps is complex, and user experience degrades.  -->
+
+<iframe src="https://app-a.example.com"></iframe>
+```
+
+```ts:web-components.ts
+// Web Components
+// Being a standard technology, it's framework-independent, but integration with React is tricky and state sharing is complex.
+
+class MyApp extends HTMLElement { ... }
+customElements.define('my-app', MyApp);
+```
+
+```tsx:RemoteApp.tsx
+// Module Federation
+// Can be used like normal React components and dependencies can be shared at runtime, but it relies on the Webpack/Rspack ecosystem.
+
+const RemoteApp = await loadRemote('company_product_a/App');
+return <RemoteApp {...props} />;
+```
+
+In our existing company development environment, all apps were React-based, and we had to share the design system and state management libraries, so Module Federation was considered the most suitable.
+
+Therefore, the integrated environment for other teams' applications was already configured using Module Federation.
+
+<Info>
+**Module Federation and the React Ecosystem**
+
+Compared to `iframe` or `Web Components`, Module Federation makes it much more natural to share state via React's Context API or share themes of CSS-in-JS libraries like Styled-components.
+
+**_This aspect felt like the biggest advantage when building an integrated environment on top of the React ecosystem._**
+
+</Info>
+
+## 3. Module Federation
+
+As mentioned earlier, our team's application among the company's products had a special situation where it had to operate both as an integration and as a standalone application. That is, a single codebase had to support both `standalone` and `remote` forms.
+
+To support these two environments without conflict, an understanding of how Module Federation internally loads modules and dependencies was necessary.<br />Let's examine the principle right now!
+
+### 3.1 Overview of Module Federation
+
+Module Federation allows separately built apps to share each other's code at runtime. It first appeared as a built-in feature in Webpack 5 (2020), and after the independent project 2.0 was revealed in 2024, it was declared Stable in early 2026.
+
+In Module Federation, the side exposing modules is called **Remote**, and the side loading them is called **Host**.
+
+The Remote defines the modules to expose externally in its build configuration.
+
+```ts:rspack.config.ts
+// Remote
+new ModuleFederationPlugin({
+  name: 'company_product_a',
+  filename: 'remoteEntry.js',
+  exposes: {
+    './App': './src/RemoteApp.tsx', // Expose this module externally
+  },
+  shared: { react: { singleton: true } },
+})
+```
+
+The Host defines which Remotes to fetch from where.
+
+```ts:rspack.config.ts
+// Host (Integrated UI)
+new ModuleFederationPlugin({
+  name: 'company_host',
+  remotes: {
+    company_product_a: 'company_product_a@/mf/product-a/remoteEntry.js',
+  },
+  shared: { react: { singleton: true } },
+})
+```
+
+With this setup, the Host can import the Remote's modules as if they were local modules.
+
+```tsx:HostApp.tsx
+const RemoteApp = await import('company_product_a/App')
+```
+
+When this `import()` statement is executed, the browser internally operates as follows:
+
+```text:Text showLineNumbers=false
+1. Load Remote's remoteEntry.js as a <script> tag
+2. Remote checks Host's shared dependencies (like React) and sets up reuse
+3. Load the remaining chunks needed for the exposed module
+4. Return the module code → Used in Host
+```
+
+If the Host and Remote register the same library in the `shared` setting, heavy dependencies like React are not loaded redundantly, and a single instance is shared. If they are not registered as shared dependencies, and the React versions of the Host and Remote are different, issues such as React being loaded twice and causing conflicts can occur.
+
+<Note>
+**React's Singleton Constraint**
+
+_If not properly registered as a shared dependency or if the versions mismatch, multiple React instances can be created at runtime. In this case, an `Invalid hook call` error occurs inside React components, leading to a problem where the app fails to render completely!_
+
+</Note>
+
+---
+
+### 3.2 Host/Remote Structure and Dual Entry Point
+
+Our team's application needs to operate in both integrated and standalone environments. The problem is that the way the app starts is fundamentally different in these two environments.
+
+- **Standalone Execution**: The browser loads `index.html`, and the app initializes React itself.
+- **Integrated Execution**: The Host loads `remoteEntry.js` and starts the app by calling the `mount()` function.
+
+So, we created two entry points for a single app logic (`App.tsx`):
+
+```text:FileTree showLineNumbers=false
+src/
+├── index.tsx       # Standalone: Directly calls createRoot()
+├── RemoteApp.tsx   # Remote: Exports mount/unmount called by Host
+└── App.tsx         # App branching logic by mode
+```
+
+**Standalone Mode**
+
+It operates the same way as a typical Single Page Application (SPA).<br/>It's set as the default entry point (`entry`) of the bundler, and when the browser directly loads `index.html`, this file is executed to initialize the built-in React and draw the screen.
+
+```tsx:index.tsx
+import ReactDOM from 'react-dom/client'
+import App from './App'
+
+ReactDOM.createRoot(document.getElementById('root')!).render(<App />)
+```
+
+**Remote Mode**
+
+The Host has control. When the Host passes a DOM element, it renders inside it, and when the Host calls unmount, it cleans up.
+
+```tsx:RemoteApp.tsx
+export const mount = async (host: HTMLElement, props?: RemoteComponentProps) => {
+  const { default: App } = await import('./App')
+
+  const root = createRoot(host)
+  root.render(<App />)
+}
+
+export const unmount = (host?: HTMLElement) => {
+  // Clean up React root
+}
+```
+
+Then, in the Module Federation plugin configuration, this `RemoteApp.tsx` is designated to be exposed externally.
+
+```ts:rspack.config.ts
+new container.ModuleFederationPlugin({
+  name: 'company_product_a',
+  filename: 'remoteEntry.js',
+  exposes: {
+    './App': './src/RemoteApp.tsx', // Host accesses via get('./App')
+  },
+  shared: mfShared,
+})
+```
+
+Once set up like this, from the Host's perspective, it only needs to know the URL of each Remote and the exposed paths. There's no need to worry about implementation details such as how routing or state management is handled inside the Remote.
+
+```ts:app-registry.ts
+// Host's app registry
+const apps = [
+  { id: 'company_product_a', remoteUrl: '/mf/product-a/remoteEntry.js', entryPoint: './App' },
+  // ...
+]
+```
+
+### 3.3 Shared Dependencies
+
+The Shared Dependencies configuration is one of the important settings in Module Federation.
+
+As mentioned earlier, React must operate as a single instance. However, since our team's application had to support both standalone and integrated execution environments, we had to consider both the situation where it needs to include React on its own (Standalone) and the situation where it needs to share the Host's React (Remote).
+
+```ts:rspack.config.ts
+// Remote Mode
+const mfSharedRemote = {
+  react: {
+    singleton: true,
+    requiredVersion: false,
+    import: false, // ← Not included in its own bundle
+  },
+  'react-dom': { singleton: true, requiredVersion: false, import: false },
+  '@company/ds': { singleton: true, strictVersion: true, import: false },
+}
+
+// Standalone Mode
+const mfSharedStandalone = {
+  react: {
+    singleton: true,
+    requiredVersion: false,
+    eager: true, // ← Included in its own bundle
+  },
+  'react-dom': { singleton: true, requiredVersion: false, eager: true },
+  '@company/ds': { singleton: true, strictVersion: true, eager: true },
+}
+
+// Select based on BUILD_MODE
+const mfShared = isRemoteMode ? mfSharedRemote : mfSharedStandalone
+```
+
+React generally works even if the minor version is different, but for the design system, if the versions of the Host and Remote don't match exactly, the UI can break, so we applied `strictVersion: true` to the in-house design system.<br/> Through this, in case of a version mismatch, an error is thrown instead of a warning, allowing us to quickly detect the issue.
+
+### 3.4 MF 2.0
+
+The MF we applied is using Rspack's built-in MF (v1.5), but MF 2.0 offers several attractive improvements.
+
+**Type Safety** — Previously, the Host couldn't know the types of modules exposed by the Remote, so they had to be treated as `any`. MF 2.0 automatically generates the Remote's TypeScript types and passes them to the Host.
+
+**Shared Tree Shaking** — Previously, shared dependencies were included in the bundle as a whole. For example, even if only three components (Badge, Button, List) were used from Ant Design, the entire library (about 1,404KB) was included in the shared bundle. But by applying MF 2.0's Tree Shaking, it's reduced to 344KB, roughly a 75% decrease.
+
+**`mf-manifest.json`** — Instead of hardcoding the `remoteEntry.js` URL, you can declaratively manage the Remote's information with a manifest file. This is useful in situations where the URL changes depending on the deployment environment.
+
+**Runtime Hooks** — You can hook into each stage of module loading. For example, you can show a fallback UI if a Remote fails to load, or inject an auth token before loading.
+
+|                       | v1.5           | v2.0 Stable                   |
+| --------------------- | -------------- | ----------------------------- |
+| Package               | Built-in Rspack| `@module-federation/enhanced` |
+| Auto Type Generation  | ✕              | ✔                             |
+| Shared Tree Shaking   | ✕              | ✔                             |
+| Manifest              | ✕              | `mf-manifest.json`            |
+| Runtime Hooks         | Basic level    | Full lifecycle                |
+| SSR                   | ✕              | ✔                             |
+| DevTools              | ✕              | Chrome Extension              |
+
+---
+
+## 4. From Vite to Rspack
+
+### 4.1 Module Federation in Vite
+
+The existing application was based on Vite. Considering the ESM-based fast dev server, instant HMR, and concise configuration, I think it was an excellent choice for developing a standalone SPA.
+
+However, to join the integrated environment, Module Federation was required, and in Vite, we could attempt this through the `@originjs/vite-plugin-federation` plugin.
+
+```ts:vite.config.ts
+import federation from '@originjs/vite-plugin-federation'
+
+export default defineConfig({
+  plugins: [
+    react(),
+    federation({
+      name: 'company_product_a',
+      filename: 'remoteEntry.js',
+      exposes: {
+        './App': './src/RemoteApp.tsx',
+      },
+      shared: ['react', 'react-dom'],
+    }),
+  ],
+})
+```
+
+### 4.2 Problems Encountered in Actual Integration
+
+The setup itself looked simple, but several problems arose during the actual integration process with the Rspack-based Host.
+
+**1. Compatibility Issues with Build Outputs**
+
+Module Federation is a native feature of Webpack 5. The Vite plugin **emulates** this, and there were subtle differences in the format of the build outputs, the way shared dependencies were resolved, and the runtime loading mechanism.
+
+**2. Fundamental Differences in Development Environments**
+
+Vite's dev server operates in an ESM-based no-bundle manner. However, the runtime of Module Federation assumes a traditional bundled environment. In dev mode, `remoteEntry.js` was not generated properly, or ESM/CommonJS mix-up issues occurred when the Host loaded the Remote.
+
+**3. Shared Dependency Conflicts**
+
+The way Vite handles dependencies (pre-bundling with esbuild) is different from Webpack/Rspack, so there were cases where dependencies set with `import: false` were not shared from the Host as expected, and the Remote loaded a separate instance.
+
+Crucially, when an error occurred, it was difficult to clearly distinguish whether the cause was a compatibility issue with the Vite plugin or a problem with the Module Federation setup itself, forcing us to spend a lot of time debugging.
+
+Eventually, feeling the limitations of "emulating Webpack ecosystem features in a Vite environment," we decided to migrate to a bundler that natively supports Module Federation in the first place.
+
+### 4.3 Rspack, Not Webpack
+
+After deciding to abandon Vite, the options natively supporting Module Federation were Webpack and Rspack.
+
+|                   | Webpack | Rspack                                |
+| ----------------- | ------- | ------------------------------------- |
+| MF Support        | Native  | Native (Webpack compatible)           |
+| Build Speed       | Slow    | Rust-based, 5~10x faster              |
+| Config Compatible | -       | Most Webpack configs can be used as is|
+| Ecosystem         | Mature  | Relatively new but growing fast       |
+
+There were three decisive reasons for choosing Rspack.
+
+1. **Alignment with the Host App**: Since the Host app was already using Rspack, we could completely eliminate compatibility risks by aligning the bundlers.
+2. **Vite-Level Build Speed**: Having grown accustomed to Vite's overwhelming dev server speed, going back to Webpack's slow build speed was too huge a loss in terms of Developer Experience (DX). Rust-based Rspack guaranteed speed comparable to Vite.
+3. **Perfect Native Support**: Because Rspack natively supports Webpack's `container.ModuleFederationPlugin`, the runtime code format issues or shared dependency resolution issues experienced with the existing Vite plugin were completely resolved.
+
+```ts:rspack.config.ts
+// Module Federation in Rspack — Same API as Webpack
+import { container } from '@rspack/core'
+
+new container.ModuleFederationPlugin({
+  name: 'company_product_a',
+  filename: 'remoteEntry.js',
+  exposes: {
+    './App': './src/RemoteApp.tsx',
+  },
+  shared: mfShared,
+})
+```
+
+Also, Rspack is the recommended bundler for MF 2.0 (`@module-federation/enhanced`). Currently, we are using the built-in v1.5, but the possibility of transitioning to MF 2.0 in the future and immediately utilizing features like Shared Tree Shaking also influenced our choice.
+
+While transitioning to Rspack, we had to dynamically configure various settings to control the two build modes (Standalone / Remote) with a single config file.
+
+#### publicPath
+
+The `publicPath` setting needs to be different in Standalone and Remote modes.
+
+```ts:rspack.config.ts
+// publicPath setting for Module Federation Remote build
+// - 'auto': Determines path dynamically (default, Dev/Docker container deployment)
+// - '/mf/ai-platform/dev/': Fixed path when uploading to RGW (S3)
+const MF_PUBLIC_PATH = process.env.MF_PUBLIC_PATH || 'auto';
+
+// ...
+output: {
+  publicPath: isRemoteMode ? MF_PUBLIC_PATH : '/',
+}
+```
+
+- **Standalone (`'/'`)**: Absolute paths are necessary to correctly load resources even in deep routing paths like `/settings/account`.
+- **Remote (`'auto'` or Fixed Path)**: The Module Federation runtime dynamically determines the correct path at runtime via `__webpack_public_path__`, or it uses a fixed path injected as a build environment variable.
+
+#### lazyCompilation
+
+Rspack's `lazyCompilation` dramatically speeds up initial build times during development, but it must be disabled in Remote mode.
+
+```ts:rspack.config.ts
+lazyCompilation:
+  !isProd && !isRemoteMode
+    ? { imports: true, entries: false }
+    : false,
+```
+
+The reason for disabling it in Remote mode is that when `lazyCompilation` is active, a proxy URL is included in `remoteEntry.js`, and the Host app cannot resolve this proxy URL to load the module. `remoteEntry.js` must be built in its complete form without lazy evaluation.
+
+<Tip>
+**Relationship between lazyCompilation and Module Federation**
+
+In a Standalone environment, it's useful because only the necessary parts from the entry point need to be loaded on-demand. <br/>However, in a Module Federation structure where the Host must load the Remote, if the entry file is not fully bundled, a problem can occur where the Host fails to find the Remote's module in time.
+
+</Tip>
+
+#### Separating Ports for Development Environment
+
+Since we need to spin up the Host and Remote simultaneously locally, they must run on different ports. Also, since they run on different origins, CORS settings were needed at the dev server level.
+
+```ts:rspack.config.ts
+devServer: {
+  port: isRemoteMode ? 20018 : 5173,  // Separated to allow simultaneous execution per mode
+  headers: { 'Access-Control-Allow-Origin': '*' },
+}
+```
+
+<Tip>
+**CORS Settings in Production Environment**
+
+In the local development server (`devServer`), we allowed all origins with `'Access-Control-Allow-Origin': '*'` for convenience, but **for actual production deployments, it is recommended to explicitly state only the allowed Host domains for security**. <br/>Otherwise, a malicious third-party site could load our team's components without permission.
+
+</Tip>
+
+#### Separating Output Paths
+
+Separate the output directories so the build results of the two modes don't get mixed up.
+
+```ts:rspack.config.ts
+output: {
+  path: path.resolve(__dirname, isRemoteMode ? 'dist-federation' : 'dist'),
+}
+```
+
+---
+
+## 5. Conclusion
+
+I only knew about Module Federation conceptually, but by applying it to an actual product, I was able to learn a lot.<br/>Honestly, I used Webpack frequently in the past, and recently I've been using Vite a lot, but I learned about the Rspack bundler for the first time on this occasion. Perhaps because it was my first time encountering it, it was an even more fun and good experience.
+
+There weren't many references, but the official documentation for Module Federation and Rspack is well-written, which helped a lot when applying them.
+
+Thanks to this, the current product flexibly supports both standalone execution and integrated execution environments with just a single codebase.
+
+Particularly, through errors, I learned a lot about why detailed options like `singleton`, `import`, and `eager` in the `shared` configuration are necessary, and how dependencies become intertwined between the Host and the Remote.
+
+This migration made me realize how important a role a bundler plays in structuring the overall frontend architecture, going beyond just a tool that transforms code,
+and made me feel that I need to study more.
+
+Concepts that didn't hit home just by reading the docs became a great experience that resonated deeply through the process of facing problems in an actual integrated environment and solving them firsthand. I feel like I'll be able to ponder things more diversely when designing architectures in the future!
+
+---
+
+## Reference
+
+- [Understanding the Concept and Mechanism of Module Federation - maxkim-j](https://maxkim-j.github.io/posts/module-federation-concepts)
+- [How Module Federation Shared Dependency Works and How to Use It](https://maxkim-j.github.io/posts/module-federation-shared)
+- [Module Federation 2.0 Official Documentation](https://module-federation.io/)
+- [Webpack 5 Module Federation](https://webpack.js.org/concepts/module-federation/)
+- [Rspack - Module Federation](https://rspack.dev/guide/features/module-federation)
