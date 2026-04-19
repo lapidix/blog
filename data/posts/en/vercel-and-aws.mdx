@@ -1,0 +1,530 @@
+---
+title: 'Vercel and AWS, Why do I use Vercel?'
+date: '2025-06-18'
+lastmod: '2025-06-18'
+tags: ['Vercel', 'AWS', 'CloudFront', 'Frontend', 'DevOps', 'Deploy']
+draft: false
+summary: 'Comparing the static website deployment methods of AWS and Vercel, easily summarizing their characteristics and differences.'
+images: ['/static/images/thumbnail/vercel-and-aws.jpeg']
+canonicalUrl: 'https://lapidix.dev/en/posts/vercel-and-aws/'
+---
+
+# 1. Introduction
+
+I currently operate my blog and resume as personal projects, and I deploy both using Vercel. It's free, and since it automatically deploys just by pushing to Git, it's so convenient that I naturally chose it.
+
+But a while ago, while talking about frontend deployment with a backend developer colleague at work, I was asked:
+
+> _What exactly is the difference between deploying with Vercel and AWS CloudFront?_
+
+I was flustered for a moment and glossed over it with a superficial answer saying, "Vercel is more convenient, and I use it because it's free for personal projects." To be honest, I didn't really know exactly either.
+
+Thinking about it, I roughly knew how S3 and CloudFront worked because I had experience setting them up myself, but it seems I've been using Vercel simply because it's "convenient."
+
+So I thought I should take this opportunity to properly understand it.
+
+Based on the scenario below, I will try to understand step-by-step from the traditional AWS method and compare how Vercel abstracts this complex process.
+
+> _In this article, assuming you have a personal domain, we build a static website, deploy it globally via CDN, and create a website by connecting a custom domain and an SSL certificate._
+
+# 2. Amazon Web Service
+
+To host the above scenario with AWS, you need to combine several services.
+The services to be used are as follows:
+
+- Amazon S3
+- Amazon CloudFront
+- Amazon Route53
+- AWS Certificate Manager (ACM)
+
+The architecture using the above AWS services is as follows.
+
+```mermaid showLineNumbers=false
+[User] → [Route53 DNS] → [CloudFront CDN] → [S3 Bucket]
+                          ↗ [ACM SSL Certificate]
+```
+
+**Data Flow:**
+
+1. User accesses `myblog.com`
+2. Route53 resolves DNS to the CloudFront distribution address
+3. CloudFront establishes an HTTPS connection with the SSL certificate
+4. CloudFront checks the cache and fetches files from S3 if necessary
+5. Content is delivered to the user
+
+## 2-1. S3 + CloudFront Configuration
+
+**Amazon S3 is a storage service that allows you to store files and make them accessible over the web**, and **CloudFront is a CDN service that quickly delivers content through over 400 edge locations worldwide**.
+
+First, let's look at how to host via S3.
+
+### S3 Static Website Hosting Setup
+
+S3 is not just a simple file storage but also provides a static website hosting feature. By uploading HTML, CSS, and JavaScript files, you can serve them as a website.
+
+**Bucket Creation and Configuration**
+
+First, you need to create an S3 bucket to store the website files and enable static website hosting. At this time, specify the main page and error page.
+
+```bash showLineNumbers=false
+# 1. Create S3 bucket
+aws s3 mb s3://my-blog-bucket
+
+# 2. Enable static website hosting
+aws s3 website s3://my-blog-bucket \
+  --index-document index.html \
+  --error-document 404.html
+```
+
+**Bucket Policy Setup (Public Read Access)**
+To access the website, all users must be able to read the files. Grant public read access through a bucket policy.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadGetObject",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::my-blog-bucket/*"
+    }
+  ]
+}
+```
+
+**File Upload**
+Upload the locally built static files to the S3 bucket. Using the `--delete` option will delete files from S3 that are not present locally, keeping them synchronized.
+
+```bash showLineNumbers=false
+# Upload built files to S3
+aws s3 sync ./build s3://my-blog-bucket --delete
+```
+
+Afterward, if you access the S3 website endpoint, the static site will be displayed normally.
+
+While it's possible to host a static site with S3 alone, there are limitations such as:
+
+- **Limited HTTPS Support**: Only HTTP is supported by default, requiring separate configuration to apply HTTPS.
+- **Single Region Service**: Content is served from only one region, which can cause speed differences for users worldwide.
+- **Complexity of Connecting Custom Domains**: Connecting a personal domain requires a separate setup process.
+- **Caching Control Limitations**: It's difficult to apply fine-grained caching policies.
+- **Security Vulnerabilities like DDoS**: Fundamental DDoS protection features are lacking.
+
+Due to these limitations, using CloudFront together provides major benefits such as:
+
+- **Global Caching**: Fast content delivery from edge locations worldwide.
+- **HTTPS Support and DDoS Protection**: Enhanced security with SSL certificates and AWS Shield.
+- **Cost Reduction**: Reduced S3 request and data transfer costs thanks to the cache.
+- **Additional Features**: Custom error pages, automatic compression, HTTP/2 support, etc.
+
+### CloudFront Distribution Setup
+
+To gain the above benefits, let's configure CloudFront.
+
+**Create Basic Distribution**
+
+When creating a CloudFront distribution, you must define origins and cache behaviors. Set the S3 website endpoint as the origin and configure it to redirect to HTTPS.
+
+```json
+{
+  "CallerReference": "my-blog-distribution",
+  "Origins": {
+    "Quantity": 1,
+    "Items": [
+      {
+        "Id": "S3-my-blog-bucket",
+        "DomainName": "my-blog-bucket.s3-website-us-east-1.amazonaws.com",
+        "CustomOriginConfig": {
+          "HTTPPort": 80,
+          "HTTPSPort": 443,
+          "OriginProtocolPolicy": "http-only"
+        }
+      }
+    ]
+  },
+  "DefaultCacheBehavior": {
+    "TargetOriginId": "S3-my-blog-bucket",
+    "ViewerProtocolPolicy": "redirect-to-https",
+    "CachePolicyId": "managed-caching-optimized",
+    "Compress": true
+  },
+  "Comment": "Blog distribution",
+  "Enabled": true
+}
+```
+
+**Cache Policy Setup**
+
+For static sites, different cache strategies are needed for each file type. HTML files are not cached so that content updates are reflected immediately, while static assets like CSS/JS/images are cached for a long time to optimize performance.
+
+```json
+{
+  "CacheBehaviors": [
+    {
+      "PathPattern": "*.html",
+      "TTL": 0, // Do not cache HTML to reflect updates immediately
+      "ViewerProtocolPolicy": "redirect-to-https"
+    },
+    {
+      "PathPattern": "/static/*",
+      "TTL": 31536000, // Cache CSS, JS, Images for 1 year
+      "ViewerProtocolPolicy": "redirect-to-https"
+    }
+  ]
+}
+```
+
+**Cache Invalidation**
+
+After deploying new content, you must remove the previously cached versions from CloudFront edge locations. To do this, perform cache invalidation.
+
+```bash showLineNumbers=false
+# Cache invalidation is essential after a new deployment
+aws cloudfront create-invalidation \
+  --distribution-id E1234567890123 \
+  --paths "/*"
+
+# Invalidate specific files only
+aws cloudfront create-invalidation \
+  --distribution-id E1234567890123 \
+  --paths "/index.html" "/about.html"
+```
+
+### Deployment Automation via GitHub Actions
+
+Manually building and uploading to S3 every time is cumbersome, so it can be automated via GitHub Actions. Let's configure it to automatically build and deploy whenever a push occurs on the `main` branch.
+
+```yaml:YAML
+name: Deploy to AWS S3 + CloudFront
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install and Build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync ./build s3://{{ secrets.S3_BUCKET_NAME }} --delete
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+```
+
+> If you need to run temporary servers per branch (staging/test environments, etc.),  
+> in AWS, you have to directly construct separate resources like S3 buckets, CloudFront distributions, and domain (DNS) settings for each branch.  
+> Also, to enable automated deployment per branch,  
+> you must either additionally configure CI/CD scripts (yaml files) for each branch,  
+> or separately implement logic to dynamically create and delete infrastructure.
+
+## 2-2. ACM + Route53 Domain Connection
+
+Now that the deployment is complete, connect the domain.
+**AWS Certificate Manager (ACM) is a service that issues and automatically renews SSL/TLS certificates for free**, and **Route53 is a DNS service that connects domain names to actual server addresses**. These two services are essential to running an HTTPS site with a custom domain.
+
+### Issue SSL Certificate in ACM
+
+First, you need to obtain an SSL certificate for HTTPS. ACM provides free certificates when integrated with AWS services and even handles automatic renewals.
+
+**Request Certificate**
+Certificates to be used in CloudFront must be issued in the `us-east-1` region. Request the certificate including both the main domain and the www subdomain.
+
+```bash showLineNumbers=false
+aws acm request-certificate \
+  --domain-name "myblog.com" \
+  --subject-alternative-names "www.myblog.com" \
+  --validation-method DNS \
+  --region us-east-1
+```
+
+**Check DNS Validation Record**
+After requesting a certificate, AWS provides a DNS validation record to verify domain ownership. You must add this record to Route53 for the certificate to be issued.
+
+```bash showLineNumbers=false
+aws acm describe-certificate \
+  --certificate-arn "arn:aws:acm:us-east-1:123456789:certificate/12345678-1234-1234-1234-123456789012" \
+  --region us-east-1
+```
+
+### Route53 DNS Setup
+
+Now, configure Route53 to manage the DNS of the domain.
+
+**Create Hosted Zone**
+Create a hosted zone to manage the domain in Route53. At this time, nameserver information is generated, which must be updated at your domain registrar to point to these nameservers.
+
+```bash showLineNumbers=false
+aws route53 create-hosted-zone \
+  --name "myblog.com" \
+  --caller-reference "$(date +%s)"
+```
+
+**Create A Record (Connect CloudFront Distribution)**
+Create an A record so that accessing the domain routes to the CloudFront distribution. By using an Alias record, you can connect directly to AWS resources instead of IP addresses.
+
+```json
+{
+  "Changes": [
+    {
+      "Action": "CREATE",
+      "ResourceRecordSet": {
+        "Name": "myblog.com",
+        "Type": "A",
+        "AliasTarget": {
+          "DNSName": "d123456789.cloudfront.net",
+          "EvaluateTargetHealth": false,
+          "HostedZoneId": "Z2FDTNDATAQYW2"
+        }
+      }
+    }
+  ]
+}
+```
+
+### Apply Custom Domain and SSL to CloudFront
+
+Finally, connect the custom domain and SSL certificate to the CloudFront distribution. Now, when a user accesses `myblog.com`, they can securely reach the site via HTTPS.
+
+```json
+{
+  "Aliases": {
+    "Quantity": 2,
+    "Items": ["myblog.com", "www.myblog.com"]
+  },
+  "ViewerCertificate": {
+    "ACMCertificateArn": "arn:aws:acm:us-east-1:123456789:certificate/12345678-1234-1234-1234-123456789012",
+    "SSLSupportMethod": "sni-only",
+    "MinimumProtocolVersion": "TLSv1.2_2021"
+  }
+}
+```
+
+Once configuration is complete, you can access your custom domain after waiting for DNS propagation.
+
+## 2-3. Summary of AWS Method
+
+Hosting a static site using AWS is a method of building by combining multiple services.
+There are a significant number of components to manage during this process.
+
+### Components to Manage
+
+- **S3 Bucket**: Static website hosting configuration, public read permissions management
+- **CloudFront**: Distribution creation, cache policy configuration by file type
+- **ACM**: SSL certificate issuance and automatic renewal verification (requires us-east-1 region)
+- **Route53**: DNS record management
+- **GitHub Actions**: Automated deployment workflow setup
+
+### Characteristics of AWS Method
+
+- Because each service operates independently, separate configurations are needed for each service.
+- Notably, SSL certificates to be used in CloudFront must be issued in the `us-east-1` region.
+- After updating content, you must manually run a cache invalidation for changes to reflect immediately.
+- With multiple services linked, if a configuration mistake occurs, pinpointing the cause can be complex.
+
+However, in exchange for this complexity, there is the advantage of being able to control each service finely and achieving high performance and stability by utilizing AWS's global infrastructure.
+
+# 3. Vercel
+
+## 3-1. Build and Global Deployment Configuration (S3 + CloudFront + GitHub Actions)
+
+### Static File Storage and Hosting (S3)
+
+In Vercel, without needing to create a separate bucket or configure permissions, the built static files are automatically saved, uploaded to the global edge network, and quickly deployed worldwide.
+
+### Global CDN Deployment (CloudFront)
+
+Through the Vercel Edge Network, content is automatically cached and served from 119 PoPs worldwide, and unique URLs for production and preview are automatically generated upon every deployment without any extra tasks like setting cache policies, origin configurations, or cache invalidation.
+
+### Deployment Trigger and Automation (GitHub Actions)
+
+By integrating with a repository (GitHub, GitLab, Bitbucket, etc.), builds and deployments occur automatically whenever a commit or push is made to a branch.
+Additionally, using the Vercel CLI, you can easily execute preview or production deployments directly from your local environment, and even specify environment variables or build options directly in the CLI. From the dashboard, you can click the Deploy button to deploy manually, or visually manage project settings, environment variables, and build logs, giving you intuitive control over the entire deployment process.
+
+```bash showLineNumbers=false
+# Preview deployment
+vercel
+# Production deployment
+vercel --prod
+```
+
+> Vercel Dashboard UI
+> ![vercel-new-project](/static/images/vercel-and-aws/vercel-new-project.png)
+
+> Once Vercel is connected to a repository, it handles the entire process at once—from static file storage and global CDN deployment to automated building and deploying.
+>
+> Without the need for separate infrastructure setup or complex scripts, pushing code alone triggers optimized deployment globally instantly.
+
+## 3-2. Preview/Staging Environments
+
+When you create a branch or a PR, a preview deployment environment is automatically created without any additional setup. For example, pushing to the `feature/login` branch generates a unique preview URL like `https://myproj-git-feature-login-username.vercel.app`, and when a Pull Request is made, this preview link is automatically posted on the PR. Upon merging or deleting a branch, the corresponding preview environment is automatically cleaned up, and each commit gets an immutable URL, enabling code reviews and collaboration exactly like the actual deployment environment.
+
+```bash
+# Automatic preview upon branch creation and push
+$ git checkout feature/new-header
+$ git push
+# Example of an automatic preview URL:
+# https://my-project-git-feature-new-header-username.vercel.app
+```
+
+> In AWS, to create testing/staging environments per branch, you must directly provision multiple additional resources such as S3, CloudFront, separate buckets, distributions, domains, and CI/CD scripts.
+>
+> However, Vercel automatically generates a preview deployment environment for every branch or PR, allowing you to operate real-time test environments for each feature without any separate infrastructure work.
+
+---
+
+## 3-3. Environment Variables Management
+
+Environment variables can be separated by environments such as production, preview, and development, and then registered or modified from the dashboard. Through the CLI as well, environment variables can be easily injected using the `vercel env add` command. During build and runtime, various system environment variables like `VERCEL=1`, `VERCEL_ENV`, `VERCEL_URL`, and `VERCEL_GIT_COMMIT_SHA` are automatically injected. You can check the full list of system variables in the official Vercel documentation.
+
+> For a detailed list of system environment variables, please refer to the [Vercel Official Documentation](https://vercel.com/docs/environment-variables/system-environment-variables)!
+
+> Vercel Dashboard UI
+> ![vercel-env](/static/images/vercel-and-aws/vercel-env.png)
+
+---
+
+## 3-4. Framework Auto-Detection and Build Settings
+
+Vercel automatically detects major frameworks like Next.js, React, and Vue and automatically configures the Build Command, Output Directory, and Install Command accordingly. Most projects can be deployed right away without any additional setup, and if necessary, you can freely customize build commands, output directories, etc., from the dashboard or CLI.
+
+For detailed instructions on build configurations, please refer to the [Vercel Official Documentation](https://vercel.com/docs/deployments/configure-a-build)!
+
+---
+
+## 3-5. Domain Connection and SSL (ACM + Route53)
+
+### Domain Connection (Route53)
+
+You can easily complete the domain connection without needing a separate DNS service just by adding the desired domain in the dashboard and registering the provided DNS records (A, CNAME, etc.). It supports subdomains, custom domains, and apex domains.
+
+- Example:
+  ```
+  Type: A      Name: @    Value: 76.76.19.61
+  Type: CNAME  Name: www  Value: cname.vercel-dns.com
+  ```
+
+### Automated SSL Certificate Issuance and Application (ACM)
+
+When you add a domain, certificates are automatically issued and applied without any separate setup or management. Critical security tasks like HTTPS redirection, certificate renewal, and security header configuration are all handled automatically, leaving almost nothing for the operator to worry about. Running the `vercel domains add myblog.com` command via CLI accomplishes domain addition and certificate issuance in one go.
+
+```bash showLineNumbers=false
+vercel domains add myblog.com
+# Automated certificate issuance/renewal, automated HTTPS redirection setup
+```
+
+All HTTP requests are automatically redirected to HTTPS, security headers are applied by default, and certificate renewals also happen automatically without user intervention.
+
+> Vercel Dashboard UI
+> ![vercel-add-domains](/static/images/vercel-and-aws/vercel-add-domains.png)
+
+---
+
+## 3-6. Summary of Vercel Method
+
+### Components to Manage
+
+- **Repository Integration**: Connect once initially, and it automatically stays integrated thereafter
+- **Automated Build/Deployment**: Supports various methods including Git push, CLI, and Dashboard
+- **Framework Detection/Configuration**: Automatically recognizes major frameworks, customizable if necessary
+- **Domain Connection**: Add from Dashboard or CLI, just register DNS records and you're done
+- **SSL Certificates**: Issuance, renewal, and application are all automatic; HTTPS is applied by default
+- **Temporary/Preview Environments**: Automatically created and cleaned up per branch/PR, offering real-time test environments
+- **Environment Variables**: Easily manage per environment from Dashboard and CLI
+
+### Characteristics of Vercel Method
+
+- Every process is fully automated, eliminating the burden of infrastructure management.
+- Build, deployment, CDN, SSL, and domain connection can be handled all at once.
+- A temporary (preview) deployment environment is automatically created for each branch or PR, making real-time testing and collaboration very convenient.
+- Supporting both Dashboard and CLI, you can freely choose between visual management and automated workflows.
+- Without complex infrastructure configuration, you can focus solely on developing code and services.
+
+# 4. Comparison and Summary
+
+## 4-1. Configuration Complexity Comparison
+
+| Stage                 | AWS                                              | Vercel                         |
+| --------------------- | ------------------------------------------------ | ------------------------------ |
+| Initial Setup         | Individual setup of S3, CloudFront, ACM, Route53 | Git repository connection      |
+| SSL Certificate       | Manual issuance in ACM, us-east-1 restriction    | Automatic issuance and renewal |
+| Deployment Automation | Direct configuration of GitHub Actions           | Provided by default            |
+| Domain Connection     | Route53 + CloudFront setup                       | Simply add DNS records         |
+| Cache Management      | Requires manual invalidation                     | Automated processing           |
+
+## 4-2. Environment Variables Management Comparison
+
+In <u>**AWS**</u>, to use environment variables, you must register values in GitHub Actions' Secrets and inject them directly from the workflow.
+They must be managed separately per environment, and the common practice is to pass values manually during the build and deployment process.
+
+```yaml
+# Store in GitHub Actions Secrets
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_ID }}
+  NEXT_PUBLIC_API_URL: ${{ secrets.API_URL }}
+```
+
+In <u>**Vercel**</u>, you can add or modify environment variables with just a few clicks in the web dashboard.
+They are automatically separated and managed by environments like Development, Preview, and Production, and they are automatically injected at build time without any separate scripts.
+
+## 4-3. Pros and Cons of Each Method
+
+When using <u>**AWS**</u>, you have to individually configure multiple services like `S3`, `CloudFront`, `ACM`, and `Route53`, and you must manually write `GitHub Actions` workflows for deployment automation. Moreover, SSL certificates can only be issued in a specific region (us-east-1), and cache invalidation or security setups are cumbersome as they must be managed manually every time.
+
+On the other hand, <u>**Vercel**</u> automatically handles all processes—such as framework optimization, SSL certificate issuance/renewal, global CDN deployment, and preview environment creation—just by integrating a Git repository. Developers don't have to worry about managing infrastructure and can focus exclusively on writing code and developing services.
+
+## 4-4. When to Choose Which?
+
+<u>**AWS**</u> S3 + CloudFront is suitable when integration with existing AWS infrastructure is
+required, when cache policies need fine-grained control, when cost optimization under massive
+traffic is crucial, or in situations where you want direct control over infrastructure
+configurations.
+
+Conversely, <u>**Vercel**</u> shows its greatest advantages when rapid prototyping is needed, when preview deployments are important in team collaboration, when you want to focus solely on frontend development, and when running projects based on Next.js.
+
+# 5. Conclusion
+
+I had been using Vercel simply because "it's convenient," but comparing it directly with AWS this time made it much clearer where the essence of that convenience lies.
+
+AWS requires you to intricately design and personally manage every process—such as file storage, global deployment, domain connection, security, and automation—service by service.
+In contrast, Vercel automatically handles all these processes simply by linking a Git repository.
+
+Particularly, the experience where separate preview environments are automatically provided per branch, and where builds, deployments, SSL, CDN, and environment variables are resolved all at once, makes a massive difference in both development productivity and collaboration efficiency.
+
+Now, rather than choosing Vercel just because "it's convenient," I felt once again that it is important to properly understand the characteristics, pros, and cons of both AWS and Vercel based on the requirements needed for my projects and team, and to make a wise choice.
+
+---
+
+### Reference
+
+- [AWS S3 Static Website Hosting](https://docs.aws.amazon.com/s3/latest/userguide/WebsiteHosting.html)
+- [AWS CloudFront Developer Guide](https://docs.aws.amazon.com/cloudfront/)
+- [AWS Certificate Manager User Guide](https://docs.aws.amazon.com/acm/)
+- [Vercel Documentation](https://vercel.com/docs)
+- [Vercel Build Step](https://vercel.com/docs/concepts/deployments/build-step)

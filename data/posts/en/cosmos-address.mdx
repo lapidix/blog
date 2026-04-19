@@ -1,0 +1,219 @@
+---
+title: 'Address in the Cosmos Ecosystem'
+date: '2025-02-07'
+lastmod: '2025-02-07'
+tags: ['Cosmos', 'Validator', 'Cosmos-SDK', 'Blockchain']
+draft: false
+summary: 'Learn about the address system used in the Cosmos ecosystem and how to convert addresses.'
+images: ['/static/images/thumbnail/cosmos.png']
+canonicalUrl: 'https://lapidix.dev/en/posts/cosmos-address/'
+---
+
+# Why Can’t an ACC Address Be Converted to a Valcons Address
+
+![cosmos](/static/images/thumbnail/cosmos.png)
+
+## Intro
+
+The Cosmos Ecosystem is a decentralized network that provides interoperability between blockchains. In this ecosystem, there are several types of addresses, each with a different purpose, and all these addresses are encoded and used in the **Bech32 format**.
+
+Recently, while building a monitoring system for validator nodes in a Cosmos-based project, I encountered a situation where I needed to obtain a Consensus Address from an Account Address. However, simple address conversion did not yield the desired result, making me realize that a deeper understanding of the Cosmos address system was necessary.
+
+In this article, I will explore in detail the address system of the Cosmos ecosystem and how the different address types are related to each other, based on the problem I experienced.
+
+## 1. Bech32 Address
+
+**Bech32** is an address encoding format used in various blockchains, including the Cosmos ecosystem. It features **high readability and built-in error detection**.
+
+Bech32 has the following characteristics:
+
+- **Readability**: Addresses consist entirely of lowercase letters, and certain ambiguous characters (like O, I, L) are not used → Easy for humans to read and type.
+- **Error Detection**: Automatically detects specific typos to prevent incorrect address entry.
+- **Variable Length Support**: Maintains consistency across different chain address formats.
+
+### 1-1 Bech32 Address Structure
+
+A Bech32 address consists of a **Prefix, a Separator ("1"), and a Data field**.
+
+```text showLineNumbers=false
+<prefix>1<bech32_encoded_data>
+```
+
+- Prefix: Used differently for each chain, such as `cosmos`, `osmosis`, etc.
+- Separator: `1` is used between the prefix and data to reduce confusion in bit-level encoding.
+- Bech32 Encoded Data: The value obtained by encoding the byte array data converted from the public key using the Bech32 method.
+
+## 2. Account Address
+
+The Account Address is the address used by general users through their wallets, mainly for token transfers.
+
+```text showLineNumbers=false
+cosmos1...
+```
+
+## 3. Validator Operator Address
+
+The Validator Operator Address is the address used for operating a validator, acting as the wallet address to receive block rewards.
+
+```text showLineNumbers=false
+cosmosvaloper1...
+```
+
+## 4. Validator Consensus Address
+
+The Validator Consensus Address is the node's address used by the validator for signing blocks and verifying them.
+
+```text showLineNumbers=false
+cosmosvalcons1...
+```
+
+## 5. Converting Account Address to Validator Operator Address ✅
+
+The Cosmos SDK provides functions to convert a Bech32 Address into byte code, and functions to convert that byte code into an Account, Validator Operator, or Validator Consensus Address.
+
+Below is the code to convert an Account Address to a Validator Operator Address, and it works perfectly.
+
+```go:Go
+import(
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"fmt"
+)
+
+func ConvertToValidatorAddress(address string) (string, error) {
+  // Convert Account Address(cosmos1...) -> byte[]
+  accAddr, err := sdk.AccAddressFromBech32(address)
+  if err != nil {
+    return "", fmt.Errorf("failed to convert address %s: %w", address, err)
+  }
+  // Convert Account Address []bytes -> Validator Operator Address []bytes
+  valAddr := sdk.ValAddress(accAddr)
+
+  // Convert Validator Operator Address []bytes -> Bech32 format
+  bech32ValAddr, err := sdk.Bech32ifyAddressBytes("cosmosvaloper", valAddr)
+  if err != nil {
+    return "", fmt.Errorf("failed to convert address %s: %w", address, err)
+  }
+
+  return bech32ValAddr, nil
+}
+```
+
+## 6. Converting Account Address to Validator Consensus Address ❌
+
+Similarly, the following code uses the Cosmos SDK to convert an Account Address to a Validator Consensus Address. While this code runs without errors, it does not produce the desired address value.
+
+```go:Go
+import(
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"fmt"
+)
+
+func ConvertToConsensusAddress(address string) (string, error) {
+  // Convert Account Address(cosmos1...) -> byte[]
+  accAddr, err := sdk.AccAddressFromBech32(address)
+  if err != nil {
+    return "", fmt.Errorf("failed to convert address %s: %w", address, err)
+  }
+  // Convert Account Address []bytes -> Validator Consensus Address []bytes
+  consAddr := sdk.ConsAddress(accAddr)
+
+  // Convert Validator Consensus Address []bytes -> Bech32 format
+  bech32ConsAddr, err := sdk.Bech32ifyAddressBytes("cosmosvalcons", consAddr)
+  if err != nil {
+    return "", fmt.Errorf("failed to convert address %s: %w", address, err)
+  }
+
+  return bech32ConsAddr, nil
+}
+```
+
+## 7. Actual Cosmos Key Structure
+
+Why does the Validator Consensus Address come out differently even when using the same logic?
+
+![cosmos-key-structure](/static/images/cosmos/cosmos-address.png)
+
+The reason is that the Validator Consensus Address uses different Public Keys in the Consensus Layer and the Application Layer.
+
+The diagram above shows the relationship between keys and addresses used in the Cosmos ecosystem. Keys and addresses are generated through two main paths:
+
+1. **Application Layer**
+   - Generates a Private Key from a Mnemonic.
+   - Generates Bech32 Address bytes of the Application Layer from the Private Key.
+   - Generates the Account Address, Validator Operator Address, and Consensus Address from these bytes.
+   - However, the Consensus Address generated here is not actually used (Use: X).
+
+2. **Consensus Layer**
+   - Generates a new Private Key during Node initialization.
+   - Generates Bech32 Address bytes of the Consensus Layer from the Private Key.
+   - Generates the actual Consensus Address to be used from these bytes.
+   - The Account Address and Validator Operator Address generated here are not used (Use: X).
+
+The two layers are linked together through the `Create Validator` transaction. At this point, the Validator Operator Address of the Application Layer and the Consensus Address of the Consensus Layer are mapped. Block generation and verification are processed using the Consensus Layer's key, while reward reception is handled by the Application Layer's address.
+
+Therefore, what I needed was the Validator Consensus Address of the Consensus Layer, but the previous code converted the Bech32 Address of the Application Layer into a Validator Consensus Address, which is why it didn't return the desired address.
+
+## 8. Converting Account Address to Validator Consensus Address Again ✅
+
+Then how can we find out the Bech32 Address of the Consensus Layer?
+
+The answer lies in the Staking module. Through a Validator, you can obtain the Consensus Layer's Public Key for that specific Validator Operator Address. Using this, you can derive the Bech32 Address and subsequently the Validator Consensus Address.
+
+```go:Go
+func ConvertToConsensusAddress(accAddr string) (string, error) {
+  validatorAddr, err := ConvertToValidatorAddress(accAddr)
+  if err != nil {
+    return "",fmt.Errorf("failed to parse valoper address: %w", err)
+  }
+  ctx := context.Background()
+
+  valAddr, err := sdk.ValAddressFromBech32(validatorAddr)
+  if err != nil {
+    return "",fmt.Errorf("failed to parse validator address: %w", err)
+  }
+
+  validatorRes, err := stakingClient.GetValidator(ctx, valAddr.String())
+  if err != nil || validatorRes == nil || validatorRes.GetValidator().ConsensusPubkey == nil {
+    return "", fmt.Errorf("failed to get validator: %w", err)
+  }
+
+  pubKeyBytes := validatorRes.GetValidator().ConsensusPubkey.Value[2:]
+  hash := sha256.Sum256(pubKeyBytes)
+  consAddr := hash[:20]
+
+  bech32ConsAddr, err := sdk.Bech32ifyAddressBytes("cosmosvalcons", consAddr)
+  if err != nil {
+    return "", fmt.Errorf("failed to convert consensus address: %w", err)
+  }
+
+  return bech32ConsAddr, nil
+}
+
+```
+
+The code above calls `GetValidator` from the Staking Module via GRPC, converts the Public Key from the response into a Bech32 Address, and then derives the Validator Consensus Address. In this way, I was able to correctly obtain the Validator Consensus Address corresponding to that Account Address.
+
+## Outro
+
+For monitoring in my project, I needed the Consensus Address to make a GRPC request to the Slashing module. With the first method, I only received the following response:
+
+```bash showLineNumbers=false
+grpcurl -plaintext \
+  -d '{"cons_address": "cosmosvalcons1..."}' \
+  cosmos-grpc.polkachu.com:14990 \
+  cosmos.slashing.v1beta1.Query/SigningInfo
+ERROR:
+  Code: NotFound
+  Message: SigningInfo not found for validator cosmosvalcons1...
+```
+
+To resolve this error, I dug deep into the address system of Cosmos. In the process, I was able to thoroughly understand the differences between the Application Layer and Consensus Layer, as well as the purpose and generation method of each address type.
+I hope this article helps you understand the address system of the Cosmos ecosystem.
+
+---
+
+### Reference
+
+- [Cosmos SDK - Bech32 on Cosmos](https://docs.cosmos.network/main/build/spec/addresses/bech32)
+- [Cosmos SDK - Accounts](https://docs.cosmos.network/main/learn/beginner/accounts)
+- [StackOverflow - Cosmos how to get account address from an operator address?](https://stackoverflow.com/questions/72169183/cosmos-how-to-get-account-address-from-an-operator-address)

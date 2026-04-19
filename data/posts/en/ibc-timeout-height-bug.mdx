@@ -1,0 +1,640 @@
+---
+title: 'Cosmos IBC Timeout Height Bug Analysis'
+date: '2025-10-07'
+lastmod: '2025-10-07'
+tags: ['Cosmos', 'IBC', 'Bug', 'Go', 'Open-Source', 'Cosmos-SDK']
+draft: false
+summary: 'Analyzing a bug in the Cosmos IBC Timeout Height logic, exploring the limitations of the Revision Number comparison method, and understanding the IBC packet timeout structure and protocol design intentions.'
+images: ['/static/images/thumbnail/ibc-go.png']
+canonicalUrl: 'https://lapidix.dev/en/posts/ibc-timeout-height-bug/'
+---
+
+# 1. Introduction
+
+There are several ecosystems in the blockchain space. Well-known networks like Bitcoin, Ethereum, and Solana can each be considered an ecosystem, but Cosmos is a bit unique.  
+Cosmos provides an SDK and a protocol module called IBC (Inter-Blockchain Communication), supporting an environment where different networks equipped with this module can communicate with each other.  
+Recently, while developing monitoring for IBC Transactions at DLV Labs, I discovered a bug in the packet timeout verification logic within IBC Transactions.
+
+This gave me a desire to learn more about IBC in detail while contributing to open source. This post summarizes the process of discovering the bug, analyzing its cause, building a PoC, and making an open-source contribution over a period of more than a month!
+
+<Info>
+
+**_You can check the currently submitted Issue [here](https://github.com/cosmos/ibc-go/issues/8653)._**
+
+</Info>
+
+# 2. IBC?
+
+Simply put, IBC (Inter-Blockchain Communication) is a communication protocol between blockchains.
+Fundamentally, each chain is independent. However, out of necessity, you might need to send Ethereum's ETH to Solana or a chain like Osmosis. Or, there might be cases where you need to read data from another chain.  
+IBC is a standard specification for such cross-chain communication.
+
+<figure className="flex flex-col items-center justify-center">
+  <img src="/static/images/ibc-timeout-height-bug/ibc-overview.png" alt="IBC Overview" />
+  <figcaption className="text-center text-sm text-gray-400 mt-2">
+    <a
+      href="https://tutorials.cosmos.network/academy/3-ibc/1-what-is-ibc.html"
+      className="text-primary-500 hover:text-primary-600"
+    >
+      What is IBC? | Developer Portal
+    </a>
+  </figcaption>
+</figure>
+
+As shown in the picture above, because each chain has a built-in Light Client of the counterparty chain, it independently verifies whether the received information is correct. Since the Light Client of each chain performs this verification, even if a Relayer is malicious, it does not cause a problem.  
+The Relayer merely plays the role of delivering messages, and if it delivers incorrect data, it is rejected during the verification phase.
+Thanks to this structure, IBC is said to have never been hacked at the protocol level since its launch in 2021.
+
+## 2-1. IBC Packet?
+
+The basic unit of data transfer in IBC is a packet. The packet delivery process operates in a callback manner where the application logic of the sending chain and receiving chain is called at each step. Once the modules of the two chains are connected, the Relayer starts relaying packets and Acknowledgements bi-directionally.
+
+### Normal Flow
+
+![](/static/images/ibc-timeout-height-bug/packet_flow.png)
+
+When a user sends a packet through the IBC App layer of Chain A, it is committed to the IBC Core. A Relayer detects this, forwards it to the IBC Core of the counterparty chain, and if it passes the Light Client verification on Chain B, it is successfully received.
+
+Afterward, Chain B generates an Acknowledgement and sends it back to Chain A via the Relayer. Finally, when Chain A receives the Acknowledgement, both chains update their respective states, and the packet delivery is complete.
+
+### Abnormal Flow
+
+![](/static/images/ibc-timeout-height-bug/packet_timeout_flow.png)
+
+The abnormal flow also starts the same way: a user sends a packet through the IBC App layer of Chain A, and it is committed to the IBC Core.  
+However, if the packet is not delivered to Chain B due to a network failure or a Relayer issue, the Relayer checks the unreceived status of the packet on Chain B. During this process, it also checks for timeouts.
+Timeouts can be set in two ways.
+
+One is an absolute time in nanoseconds called **timestamp**, and the other is **height**. The Height has the format `<Counterparty Chain's Revision_number>-<Timeout Block Height of Counterparty Chain>`. Here, the Revision number is an identifier that increments every time the chain undergoes a hard fork or major upgrade resulting in a protocol version change. Since the block height can be reset after an upgrade, using it together with the Revision number allows representing a unique point in the chain's entire history.
+For example, "Block 10000 of Cosmos Hub v14" and "Block 10000 of v15" are different points in time, so they are distinguished as `14-10000` and `15-10000`.
+
+Timeout handling proceeds as follows.  
+As the Relayer periodically checks the state of Chain B, if Chain B's current time has exceeded `timeout_timestamp` or Chain B's current height has exceeded `timeout_height`—that is, if either condition is met—it determines that a timeout has occurred. At this point, the Relayer delivers a TimeoutPacket to Chain A, and Chain A's OnTimeoutPacket callback is invoked to rollback the packet.
+
+For example, in an IBC token transfer, the temporarily escrowed tokens are returned to the sender. Conversely, if neither condition is met, the Relayer continues attempting to deliver the packet.
+This means that if the timeout conditions are configured incorrectly, a packet could remain in a pending state permanently.
+
+> Detailed information can be found in the [official documentation](https://ibc.cosmos.network/v10/ibc/apps/ibcmodule/#packet-callbacks).
+
+# 3. What Bug?
+
+The bug we found is that we confirmed transactions where this packet timeout height was set weirdly.
+
+<figure className="flex flex-col items-center justify-center">
+  <img src="/static/images/ibc-timeout-height-bug/normal-tx.png" alt="IBC Overview" />
+  <figcaption className="text-center text-sm text-gray-300 mt-2 font-bold">
+    Normal Transaction
+  </figcaption>
+</figure>
+
+<figure className="flex flex-col items-center justify-center">
+  <img src="/static/images/ibc-timeout-height-bug/abnormal-tx.png" alt="IBC Overview" />
+  <figcaption className="text-center text-sm text-gray-300 mt-2 font-bold">
+    Abnormal Transaction
+  </figcaption>
+</figure>
+
+Both are successfully processed transactions. If you check the `Packet Timeout Height` in the photos, you can see that it is strange.  
+Normally, the counterparty chain's revision number is 1, followed by the block height at which the timeout will occur. However, looking at the abnormal transaction, the revision number is unusually high, and the block height is also at a nonsensical level.  
+So I looked into why on earth this was happening one by one.
+
+## 3-1 Defining the Problem
+
+The current situation can be summarized as follows.
+
+The `packet timeout height` generated in SendPacket of an IBC Transfer should be in the format `<Counterparty chain revision number>-<Timeout block height of counterparty chain>`. However, in the case of the abnormal transaction, it was being generated in the format `<Processed height on own chain>-<Processed height on own chain + 100>`.
+
+If this fact is exploited, it becomes possible to create packets that will never time out.  
+In normal IBC communication, a timeout is a safety mechanism that operates when a packet is not delivered due to network failure or a Relayer issue. It plays the role of preventing asset loss by rolling back tokens that were escrowed (temporarily held) on the sending chain.
+
+However, if the revision number is set abnormally high, this safety mechanism does not operate.  
+For example, even in a situation where the packet is actually not delivered due to network failure, if the timeout height is set to a value like `9999-100`, the timeout will not occur. We would have to wait until the counterparty chain's Revision number upgrades to 9999, which is practically a point in time that will never come.
+As a result, the tokens escrowed on the sending chain are not rolled back, and they become permanently locked without being received by the receiving chain either.
+
+Furthermore, the cost of the attack is almost zero. Since one simply needs to set an incorrect timeout height, the only requirement is the transaction fee, meaning that the network's safety mechanism can be bypassed without large funds or complex technology.
+
+**I felt that such packets that never time out could have a negative impact on the network.**
+
+So I started looking for why such cases arise.
+
+## 3-2 Why would such an invalid packet be processed normally?
+
+First, to find out why such an invalid packet is processed normally, I checked the code in the `ibc-go` repository.
+
+Looking inside the `SendPacket()` function in `modules/core/04-channel/keeper/packet.go`, there was logic that creates a Timeout and then checks if the packet timeout is valid through `Elapsed()`.
+
+```go:Go  modules/core/04-channel/keeper/packet.go {18-20}
+// SendPacket is called by a module in order to send an IBC packet on a channel.
+// The packet sequence generated for the packet to be sent is returned. An error
+// is returned if one occurs.
+func (k Keeper) SendPacket(
+	ctx sdk.Context,
+	channelCap *capabilitytypes.Capability,
+	sourcePort string,
+	sourceChannel string,
+	timeoutHeight clienttypes.Height,
+	timeoutTimestamp uint64,
+	data []byte,
+) (uint64, error) {
+
+  	// ...
+
+	// check if packet is timed out on the receiving chain
+	timeout := types.NewTimeout(packet.GetTimeoutHeight().(clienttypes.Height), packet.GetTimeoutTimestamp())
+	if timeout.Elapsed(latestHeight.(clienttypes.Height), latestTimestamp) {
+		return 0, errorsmod.Wrap(timeout.ErrTimeoutElapsed(latestHeight.(clienttypes.Height), latestTimestamp), "invalid packet timeout")
+	}
+
+	commitment := types.CommitPacket(k.cdc, packet)
+
+	k.SetNextSequenceSend(ctx, sourcePort, sourceChannel, sequence+1)
+	k.SetPacketCommitment(ctx, sourcePort, sourceChannel, packet.GetSequence(), commitment)
+
+	emitSendPacketEvent(ctx, packet, channel, timeoutHeight)
+
+	return packet.GetSequence(), nil
+}
+```
+
+Then let's take a closer look at the `Elapsed()` function in `modules/core/04-channel/types/timeout.go`.
+
+```go:Go  modules/core/04-channel/types/timeout.go {4,10}
+// Elapsed returns true if either the provided height or timestamp is past the
+// respective absolute timeout values.
+func (t Timeout) Elapsed(height clienttypes.Height, timestamp uint64) bool {
+	return t.heightElapsed(height) || t.timestampElapsed(timestamp)
+}
+
+// heightElapsed returns true if the timeout height is non empty
+// and the timeout height is greater than or equal to the relative height.
+func (t Timeout) heightElapsed(height clienttypes.Height) bool {
+	return !t.Height.IsZero() && height.GTE(t.Height)
+}
+```
+
+The logic itself is simple. It checks if the Height has elapsed, and if not, it checks the timestamp. If neither has elapsed, it returns `false`, and if either one has elapsed, it returns `true`.
+
+Since the problem we found is in the height verification part, we need to look deeper into the `heightElapsed()` method. The Height must not be zero, and the current height must not be greater than or equal to the timeout height. Here, GTE stands for Greater Than or Equal to, which is a method to compare if something is greater than or equal to.
+
+To check the GTE method, let's look inside the `modules/core/02-client/types/height.go` file.
+
+```go:Go  modules/core/02-client/types/height.go {15-21,27}
+// Compare implements a method to compare two heights. When comparing two heights a, b
+// we can call a.Compare(b) which will return
+// -1 if a < b
+// 0  if a = b
+// 1  if a > b
+//
+// It first compares based on revision numbers, whichever has the higher revision number is the higher height
+// If revision number is the same, then the revision height is compared
+func (h Height) Compare(other exported.Height) int64 {
+	height, ok := other.(Height)
+	if !ok {
+		panic(fmt.Errorf("cannot compare against invalid height type: %T. expected height type: %T", other, h))
+	}
+	var a, b big.Int
+	if h.RevisionNumber != height.RevisionNumber {
+		a.SetUint64(h.RevisionNumber)
+		b.SetUint64(height.RevisionNumber)
+	} else {
+		a.SetUint64(h.RevisionHeight)
+		b.SetUint64(height.RevisionHeight)
+	}
+	return int64(a.Cmp(&b))
+}
+
+// GTE Helper comparison function returns true if h >= other
+func (h Height) GTE(other exported.Height) bool {
+	cmp := h.Compare(other)
+	return cmp >= 0
+}
+```
+
+`GTE()` compares each height and checks if it is greater than 0, so the actual comparison logic is in `Compare()`. The `Compare()` method first verifies the type, and if the Revision Numbers are the same, it compares the height, but if they are different, it only compares the Revision number.
+
+Because of this logic, the abnormal transaction was previously able to pass the validation check.  
+If the provided revision number is higher than the value stored in the light client, the `Compare()` function will always return 1, and `GTE()` will also return `true`. In the current logic, since the Revision number has a higher verification priority than the Block height, a timeout condition can be bypassed as long as the Revision number is high.
+
+For example, assuming the current state of the counterparty chain is `1-10000`, if an attacker sends a packet with `9000-9100`, this packet will permanently never meet the timeout condition unless the counterparty chain's Revision number upgrades to 9999.
+
+<Tip>
+**Then can't we change the priority?**  
+While looking at the code, I thought, "If comparing whether the Revision Numbers are not equal first is the problem, can't we just change the order of comparison?"
+
+However, after thinking about it, the current logic is quite reasonable.  
+Let's consider a situation where the counterparty chain's Revision Number increases due to an upgrade. Assume the current counterparty chain state stored in the Light Client is `1-900`, and the timeout height of the packet to be verified is `2-20`.
+
+If the Revision Height were compared first, it would judge that the timeout has already passed since 900 > 20. However, in reality, since the counterparty chain just upgraded to Revision 2, `2-20` is a future point in time compared to `1-900`, but a normal packet would fail to pass.
+![](/static/images/ibc-timeout-height-bug/revision-number-upgrade.png/)
+
+When a chain goes through a hard fork or major upgrade, the Revision Number increases, but the Block Height can start again from a low value. In such a situation, we must check the Revision Number first to correctly determine which Revision number's block height it is.
+
+Thus, I realized that prioritizing the Revision Number comparison is actually a reasonable design.
+
+</Tip>
+
+For example, assuming the current state of the counterparty chain is `1-10000`, if an attacker sends a packet with `9000-9100`, this packet will permanently never meet the timeout condition unless the counterparty chain's Revision number upgrades to 9999.
+
+## 3-3 Let's build a PoC to reproduce the same situation
+
+First, I needed an environment to verify whether I could intentionally create such an abnormal Timeout height containing `9000-9100`.
+The cli for ibc transfer supports a flag called `--packet-timeout-height`. Through this, you can use a cli like the following.
+
+```bash:Bash showLineNumbers=false
+  simd tx ibc-transfer transfer [src-port] [src-channel] [receiver] [amount] [chain-id]
+```
+
+To actually reproduce the bug, I set up two simapps provided by the ibc-go repository and a relayer node called hermes using docker compose. Each chain was set to `alice` and `bob-1`.
+
+> You can find the PoC repository [here](https://github.com/lapidix/ibc-timeout-bug-poc).
+
+### Configuring a PoC environment for the latest version
+
+First, to send tokens from the alice chain to the bob chain, I executed the following CLI.
+
+```bash:Bash showLineNumbers=false
+  docker exec -it simapp-1 simd tx ibc-transfer transfer transfer channel-0 cosmos1zaavvzxez0elundtn32qnk9lkm8kmcszzsv80v 100alice --from validator --chain-id alice --packet-timeout-height 9000-9100 --packet-timeout-timestamp 0 --gas-prices 0.01alice --keyring-backend test --yes
+```
+
+But it failed with the following output.
+
+```shell:Shell showLineNumbers=false
+  10:18AM ERR failure when running app err="relative timeouts using block height is not supported"
+```
+
+It was an error saying that `--packet-timeout-height` is not supported, so I checked the code to see why it doesn't work.
+
+### Checking the reason for failure at the code level
+
+The CLI below executes `NewTransferTxCmd()` in `modules/apps/tranfer/client/cli/tx.go`.
+
+```bash:Bash showLineNumbers=false
+  simd tx ibc-transfer transfer [src-port] [src-channel] [receiver] [amount] [chain-id]
+```
+
+So I checked the code of the latest version.
+
+```go:Go  modules/apps/tranfer/client/cli/tx.go {37-55}
+func NewTransferTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+        // ...
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+            //...
+
+			timeoutHeightStr, err := cmd.Flags().GetString(flagPacketTimeoutHeight)
+			if err != nil {
+				return err
+			}
+
+			timeoutHeight, err := clienttypes.ParseHeight(timeoutHeightStr)
+			if err != nil {
+				return err
+			}
+
+			timeoutTimestamp, err := cmd.Flags().GetUint64(flagPacketTimeoutTimestamp)
+			if err != nil {
+				return err
+			}
+
+			absoluteTimeouts, err := cmd.Flags().GetBool(flagAbsoluteTimeouts)
+			if err != nil {
+				return err
+			}
+
+			memo, err := cmd.Flags().GetString(flagMemo)
+			if err != nil {
+				return err
+			}
+
+			// NOTE: relative timeouts using block height are not supported.
+			// if the timeouts are not absolute, CLI users rely solely on local clock time in order to calculate relative timestamps.
+			if !absoluteTimeouts {
+				if !timeoutHeight.IsZero() {
+					return errors.New("relative timeouts using block height is not supported")
+				}
+
+				if timeoutTimestamp == 0 {
+					return errors.New("relative timeouts must provide a non zero value timestamp")
+				}
+
+				// use local clock time as reference time for calculating timeout timestamp.
+				now := time.Now().UnixNano()
+				if now <= 0 {
+					return errors.New("local clock time is not greater than Jan 1st, 1970 12:00 AM")
+				}
+
+				timeoutTimestamp = uint64(now) + timeoutTimestamp
+			}
+
+			msg := types.NewMsgTransfer(
+				srcPort, srcChannel, coin, sender, receiver, timeoutHeight, timeoutTimestamp, memo,
+			)
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cmd.Flags().String(flagPacketTimeoutHeight, "0-0", "Packet timeout block height in the format {revision}-{height}.")
+	cmd.Flags().Uint64(flagPacketTimeoutTimestamp, defaultRelativePacketTimeoutTimestamp, "Packet timeout timestamp in nanoseconds from now. Default is 10 minutes. On IBC v1 protocol, either timeout timestamp or timeout height must be set. On IBC v2 protocol timeout timestamp must be set.")
+	cmd.Flags().Bool(flagAbsoluteTimeouts, false, "Timeout flags are used as absolute timeouts.")
+	cmd.Flags().String(flagMemo, "", "Memo to be sent along with the packet.")
+
+	flags.AddTxFlagsToCmd(cmd)
+
+	return cmd
+}
+```
+
+As stated in the comments above, in the latest version, setting relative timeouts using block height is no longer supported, and timestamp is used instead.
+However, in mintscan, such transactions clearly existed.  
+To find out why, I checked the ibc-go version being used in the actual network.  
+**The chains where the problematic transactions occurred were all using v8.x.x, and many other chains were also using v8.x.x or lower versions.**
+
+<Note>
+  I checked the `go.mod` of several chains as follows.
+
+- [Osmosis](https://github.com/osmosis-labs/osmosis/blob/8d67e79179080d3b966485b000d576c1df1358ec/go.mod#L33) - v8.x.x
+- [Milkyway](https://github.com/milkyway-labs/milkyway/blob/3197b6ea34d144492aa07528aa2996fa4e02b5f1/go.mod#L32) - v8.x.x
+- [Celestia](https://github.com/celestiaorg/celestia-node/blob/10737b8f7994c9a3806b957c95ce197e9916b26e/go.mod#L166) - v8.x.x
+- [Axelar](https://github.com/axelarnetwork/axelar-core/blob/6f47fceb9bad525a12379bbc60cdde817a470d02/go.mod#L14) - v4.x.x
+- [Sei](https://github.com/sei-protocol/sei-chain/blob/9ca21bf9ef8ba82c96e7f6a8a994e83bcec253d1/go.mod#L363) - v3.x.x
+
+</Note>
+
+### Configuring a PoC environment for version 8.x.x
+
+Since it was possible with version `8.x.x`, I checked what differences there were in the code.
+
+```shell:Shell showLineNumbers=false
+  docker exec -it simapp-1 simd tx ibc-transfer transfer transfer channel-0 cosmos1zaavvzxez0elundtn32qnk9lkm8kmcszzsv80v 100alice --from validator --chain-id alice --packet-timeout-height 9000-9100 --packet-timeout-timestamp 0 --gas-prices 0.01alice --keyring-backend test --yes
+  code: 0
+  codespace: ""
+  data: ""
+  events: []
+  gas_used: "0"
+  gas_wanted: "0"
+  height: "0"
+  info: ""
+  logs: []
+  raw_log: ""
+  timestamp: ""
+  tx: null
+  txhash: 83FB666C3789AD0AB710A2B47A7DCC73BA2D463AA00114B354CEE76FA7A3E274
+```
+
+After parsing the transaction into a json file and extracting the `send_packet` event separately, the result is as follows.
+
+```json:JSON {14-18}
+{
+  "type": "send_packet",
+  "attributes": [
+    {
+      "key": "packet_data",
+      "value": "{\"amount\":\"100\",\"denom\":\"alice\",\"receiver\":\"cosmos1zaavvzxez0elundtn32qnk9lkm8kmcszzsv80v\",\"sender\":\"cosmos1zaavvzxez0elundtn32qnk9lkm8kmcszzsv80v\"}",
+      "index": true
+    },
+    {
+      "key": "packet_data_hex",
+      "value": "7b22616d6f756e74223a22313030222c2264656e6f6d223a22616c696365222c227265636569766572223a22636f736d6f73317a616176767a78657a30656c756e64746e3332716e6b396c6b6d386b6d63737a7a7376383076222c2273656e646572223a22636f736d6f73317a616176767a78657a30656c756e64746e3332716e6b396c6b6d386b6d63737a7a7376383076227d",
+      "index": true
+    },
+    {
+      "key": "packet_timeout_height",
+      "value": "9001-9135",
+      "index": true
+    },
+    {
+      "key": "packet_timeout_timestamp",
+      "value": "0",
+      "index": true
+    },
+    {
+      "key": "packet_sequence",
+      "value": "1",
+      "index": true
+    },
+    {
+      "key": "packet_src_port",
+      "value": "transfer",
+      "index": true
+    },
+    {
+      "key": "packet_src_channel",
+      "value": "channel-0",
+      "index": true
+    },
+    {
+      "key": "packet_dst_port",
+      "value": "transfer",
+      "index": true
+    },
+    {
+      "key": "packet_dst_channel",
+      "value": "channel-0",
+      "index": true
+    },
+    {
+      "key": "packet_channel_ordering",
+      "value": "ORDER_UNORDERED",
+      "index": true
+    },
+    {
+      "key": "packet_connection",
+      "value": "connection-0",
+      "index": true
+    },
+    {
+      "key": "connection_id",
+      "value": "connection-0",
+      "index": true
+    },
+    {
+      "key": "msg_index",
+      "value": "0",
+      "index": true
+    }
+  ]
+}
+```
+
+Looking at the highlighted `packet_timeout_height`, it comes out as `9001-9135`. It seems to be a value obtained by adding the current bob-1 chain's revision number 1 and block height 35.
+
+### Checking code differences in version 8.x.x
+
+I checked what differences there were in the code since it was possible in the `8.x.x` version.
+
+```go:Go  modules/apps/tranfer/client/cli/tx.go {65-70}
+func NewTransferTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+        // ...
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+        // ...
+			timeoutHeightStr, err := cmd.Flags().GetString(flagPacketTimeoutHeight)
+			if err != nil {
+				return err
+			}
+			timeoutHeight, err := clienttypes.ParseHeight(timeoutHeightStr)
+			if err != nil {
+				return err
+			}
+
+			timeoutTimestamp, err := cmd.Flags().GetUint64(flagPacketTimeoutTimestamp)
+			if err != nil {
+				return err
+			}
+
+			absoluteTimeouts, err := cmd.Flags().GetBool(flagAbsoluteTimeouts)
+			if err != nil {
+				return err
+			}
+
+			memo, err := cmd.Flags().GetString(flagMemo)
+			if err != nil {
+				return err
+			}
+
+			// if the timeouts are not absolute, retrieve latest block height and block timestamp
+			// for the consensus state connected to the destination port/channel.
+			// localhost clients must rely solely on local clock time in order to use relative timestamps.
+			if !absoluteTimeouts {
+				clientRes, err := channelutils.QueryChannelClientState(clientCtx, srcPort, srcChannel, false)
+				if err != nil {
+					return err
+				}
+
+				var clientState exported.ClientState
+				if err := clientCtx.InterfaceRegistry.UnpackAny(clientRes.IdentifiedClientState.ClientState, &clientState); err != nil {
+					return err
+				}
+
+				clientHeight, ok := clientState.GetLatestHeight().(clienttypes.Height)
+				if !ok {
+					return fmt.Errorf("invalid height type. expected type: %T, got: %T", clienttypes.Height{}, clientState.GetLatestHeight())
+				}
+
+				var consensusState exported.ConsensusState
+				if clientState.ClientType() != exported.Localhost {
+					consensusStateRes, err := clientutils.QueryConsensusState(clientCtx, clientRes.IdentifiedClientState.ClientId, clientHeight, false, true)
+					if err != nil {
+						return err
+					}
+
+					if err := clientCtx.InterfaceRegistry.UnpackAny(consensusStateRes.ConsensusState, &consensusState); err != nil {
+						return err
+					}
+				}
+
+				if !timeoutHeight.IsZero() {
+					absoluteHeight := clientHeight
+					absoluteHeight.RevisionNumber += timeoutHeight.RevisionNumber
+					absoluteHeight.RevisionHeight += timeoutHeight.RevisionHeight
+					timeoutHeight = absoluteHeight
+				}
+
+				// use local clock time as reference time if it is later than the
+				// consensus state timestamp of the counterparty chain, otherwise
+				// still use consensus state timestamp as reference.
+				// for localhost clients local clock time is always used.
+				if timeoutTimestamp != 0 {
+					var consensusStateTimestamp uint64
+					if consensusState != nil {
+						consensusStateTimestamp = consensusState.GetTimestamp()
+					}
+
+					now := time.Now().UnixNano()
+					if now > 0 {
+						now := uint64(now)
+						if now > consensusStateTimestamp {
+							timeoutTimestamp = now + timeoutTimestamp
+						} else {
+							timeoutTimestamp = consensusStateTimestamp + timeoutTimestamp
+						}
+					} else {
+						return errors.New("local clock time is not greater than Jan 1st, 1970 12:00 AM")
+					}
+				}
+			}
+
+			msg := types.NewMsgTransfer(
+				srcPort, srcChannel, coin, sender, receiver, timeoutHeight, timeoutTimestamp, memo,
+			)
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cmd.Flags().String(flagPacketTimeoutHeight, types.DefaultRelativePacketTimeoutHeight, "Packet timeout block height. The timeout is disabled when set to 0-0.")
+	cmd.Flags().Uint64(flagPacketTimeoutTimestamp, types.DefaultRelativePacketTimeoutTimestamp, "Packet timeout timestamp in nanoseconds from now. Default is 10 minutes. The timeout is disabled when set to 0.")
+	cmd.Flags().Bool(flagAbsoluteTimeouts, false, "Timeout flags are used as absolute timeouts.")
+	cmd.Flags().String(flagMemo, "", "Memo to be sent along with the packet.")
+	flags.AddTxFlagsToCmd(cmd)
+
+	return cmd
+}
+
+```
+
+Looking inside the code, based on the `DefaultRelativePacketTimeoutHeight` value of `0-1000`, it adds the counterparty chain's revision number and height so that a timeout occurs 1000 blocks after the current one.
+
+**In conclusion, starting from `v9.x.x` up to the latest version `v10.x.x`, `--packet-timeout-height` is blocked in the CLI, but up to `v8.x.x`, it was possible to set the flag.**
+
+## 3-4 So is an attack also possible?
+
+Having confirmed that it's theoretically possible, I tested whether an actual network attack was also possible.  
+With the help of AI, I built a monitoring environment using Grafana and Prometheus in the PoC, and sent massive amounts of transactions multiple times via scripts, but contrary to my expectations, the network didn't flinch.
+
+**From what I confirmed, although the transactions did not meet the timeout conditions, they were inherently normal transactions, so they were processed normally. To slow down the transaction processing speed, I tried putting massive amounts of strings in the `memo` field, but this also had no significant effect.**
+
+> During this process, I realized that the IBC protocol is much more robust than I thought. Thanks to the structure where each chain verifies independently, I couldn't find an actual attack method at my knowledge level, and I thought, "There's a reason why it hasn't been hacked so far."
+
+# 4. Contribution
+
+Although I failed to implement an attack, I judged that the validity itself that could bypass the timeout was a problem.  
+In particular, since many major chains use `v8.x.x` and below, an improvement seemed necessary.
+
+To decide the direction of contribution, I looked at the issues and roadmap of ibc-go. During that process, I found that the team was preparing for the V2 version, and in V2, packet timeout height is not used at all, and timeouts are handled only with timestamp.  
+Checking the [test code](https://github.com/cosmos/ibc-go/blob/4cb2ec7a329084f3664a3cbc6ecb3f4a04783498/modules/core/02-client/types/height_test.go#L16-L51), it seemed they were already aware of the problem that occurs when the Revision Number is high.
+
+Upgrading to V2 fundamentally solves the problem, but since most chains in the production environment, including Osmosis, Celestia, and Milkyway, were still using versions `v8.x.x` or lower, and a V2 migration is not a simple library update, I thought it would take a considerable amount of time.
+
+So I thought it was right to improve and raise this issue in the V1 version as well. Checking [CONTRIBUTING.md](https://github.com/cosmos/ibc-go/blob/4cb2ec7a329084f3664a3cbc6ecb3f4a04783498/CONTRIBUTING.md), it guided to register an Issue first before submitting a PR, so I summarized the findings and created an Issue.
+
+> Security-related bugs are supposed to be reported via [HackerOne](https://hackerone.com/cosmos?type=team), but since configuring an actual attack scenario is difficult for this case and the CLI is blocked in the latest versions, the protocol's own verification mechanism still works. Therefore, I judged it to be closer to a simple bug rather than a security issue, and thought it was appropriate to proceed as an Issue.
+
+In IBC, Light Client information is periodically renewed through Update client, and if it's not updated for a certain period, it enters an expired state and packets can no longer be sent.  
+In other words, the Revision numbers of two chains communicating normally must always be the same.
+
+Thinking that the verification logic could be improved based on this, I also attached improvement codes as an Issue comment.
+
+The first is to pre-verify whether the Revision number of the Timeout height matches the current Revision number of the counterparty chain at the time of packet creation in SendPacket. The second is to immediately treat it as a timeout if the Revision numbers are different in the heightElapsed method.  
+The first method is a proactive blocking method that prevents invalid packets from being created in the first place, and the second is a method to filter them out during the verification stage. I left the specific code implementation for each in the comments.
+
+# 5. Conclusion
+
+During the period of a little over a month deep-diving into the IBC protocol, I learned a lot.
+Currently, I have opened an Issue, but I haven't received a response yet.. 😂
+
+Previously, when I encountered IBC while writing a post related to Hermes, my understanding remained superficial. However, this time, by rereading the official documentation and tracing and debugging the actual code, I confirmed that the timeout mechanism, which I only knew abstractly, operates systematically based on Revision Number and Revision Height.
+
+In particular, while wondering why the existing `Compare()` logic prioritized comparing the Revision Number, I came to understand that it is a design considering the upgrade situation of the counterparty chain. Because when a chain goes through a major upgrade, the Revision Number increases and the Block Height can be reset, simply comparing heights at this point would be flawed. **Thinking deeply about the design intentions helped me understand the code much better.**
+
+Learning about IBC V2 was also interesting. The fact that they are changing to use only timestamp, not because of the bug I found, but to add the Eureka feature, gave me the impression that the protocol is evolving in a pragmatic direction. After finishing this post, I plan to dig deeper into what Eureka is.
+
+**I also learned a lot on the development side. I tried writing code to propose an improvement in the Issue, and because the responsibility boundaries by function inside the code of the ibc-go repository are clearly separated, I had to think a lot about where to add it even though it wasn't a large feature.  
+Also, I used to think "good code doesn't need comments", but I realized how important adding appropriate comments in appropriate places is in conveying the code's intentions.  
+While analyzing the test code, my previously immature Golang testing skills naturally improved.**
+
+There are some regrets too. As the period lengthened, my motivation dropped towards the end, and I couldn't fully implement a network attack scenario that seemed theoretically possible. However, rather in that process, I felt the robustness of IBC. The protocol didn't waver despite multiple attempts, and I realized that the lack of protocol-level hacking incidents since its launch in 2021 wasn't just an empty claim.
+
+**Through this experience, beyond simply finding a bug, I learned the design philosophy of the protocol and how the open-source ecosystem works.
+I believe this deep understanding will be helpful when working on projects based on the Cosmos SDK in the future.  
+I also felt that this method of digging down to the code level to understand the principles suits me well.
+I thought I should continue to study with this attitude of trying to understand things from their foundation.**
