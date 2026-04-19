@@ -22,8 +22,10 @@ async function getTrendingPosts(): Promise<PostWithViews[]> {
       withScores: true,
     })
 
-    const posts = allCoreContent(sortPosts(allBlogs))
-    const retrospectionPosts = allCoreContent(sortPosts(allRetrospections))
+    const posts = allCoreContent(sortPosts(allBlogs.filter((p) => p.locale === 'ko')))
+    const retrospectionPosts = allCoreContent(
+      sortPosts(allRetrospections.filter((p) => p.locale === 'ko'))
+    )
     const allPosts = [...posts, ...retrospectionPosts]
     const trendingPosts: PostWithViews[] = []
 
@@ -66,15 +68,17 @@ async function getTrendingPosts(): Promise<PostWithViews[]> {
     })
 
     // 오류 발생 시 최신 글 4개 반환
-    const sortedPosts = sortPosts(allBlogs)
+    const sortedPosts = sortPosts(allBlogs.filter((p) => p.locale === 'ko'))
     const posts = allCoreContent(sortedPosts)
     return posts.slice(0, 4).map((post) => ({ ...post, views: 0 }))
   }
 }
 
 function getLatestPosts(): CoreContent<Blog | Retrospection>[] {
-  const blogPosts = allCoreContent(sortPosts(allBlogs))
-  const retrospectionPosts = allCoreContent(sortPosts(allRetrospections))
+  const blogPosts = allCoreContent(sortPosts(allBlogs.filter((p) => p.locale === 'ko')))
+  const retrospectionPosts = allCoreContent(
+    sortPosts(allRetrospections.filter((p) => p.locale === 'ko'))
+  )
   const allPosts = [...blogPosts, ...retrospectionPosts]
 
   // 날짜순 정렬 (최신순)
