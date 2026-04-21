@@ -1,41 +1,84 @@
 /**
  * CSS Styles for code highlighting.
- * Material Palenight theme
+ *
+ * Base (default, unconditional): GitHub Light-like palette.
+ * Dark override (scoped to `.dark`): Material Palenight.
+ *
+ * This structure is robust to any theme class naming: the light palette is
+ * always applied by default, and the dark palette kicks in only when `.dark`
+ * is present on a parent (tailwind.config.js sets `darkMode: 'class'`).
+ *
+ * IMPORTANT: Tailwind Typography (`prose`) sets `--tw-prose-pre-bg` and
+ * `--tw-prose-pre-code` to dark defaults and applies them via `.prose :where(pre)`,
+ * which can override bare `pre[class*='language-']` rules. We therefore
+ * redefine those CSS variables AND add stronger `.prose pre[...]` rules.
  */
 
-.remark-code-title {
-  @apply font-mono text-xs;
-  background: #1e2a30;
-  color: #89ddff;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  padding: 0.625rem 0.75rem;
-  margin: 0;
-  border-top-left-radius: 0.375rem;
-  border-top-right-radius: 0.375rem;
-  border: 1px solid rgba(137, 221, 255, 0.3);
-  border-bottom: 0;
-  box-shadow:
-    0 -2px 10px rgba(137, 221, 255, 0.05),
-    0 2px 4px rgba(0, 0, 0, 0.15);
-  position: relative;
-  z-index: 2;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: break-word;
+/* =========================
+ * Override Tailwind Typography (prose) design tokens for pre/code
+ * ========================= */
+.prose {
+  --tw-prose-pre-bg: #f6f8fa;
+  --tw-prose-pre-code: #24292e;
+  --tw-prose-invert-pre-bg: #263238;
+  --tw-prose-invert-pre-code: #c3cee3;
 }
 
-.remark-code-title + div > pre {
-  @apply mt-0 rounded-t-none;
-  padding-left: 0;
-  padding-right: 0;
-  border: 1px solid rgba(137, 221, 255, 0.3);
-  box-shadow:
-    0 6px 12px rgba(0, 0, 0, 0.2),
-    0 1px 3px rgba(0, 0, 0, 0.1),
-    0 0 0 1px rgba(137, 221, 255, 0.05);
-  position: relative;
-  z-index: 1;
+.prose pre[class*='language-'],
+.prose pre {
+  color: #24292e;
+  background: #f6f8fa;
+}
+
+.dark .prose pre[class*='language-'],
+.dark .prose pre {
+  color: #c3cee3;
+  background: #263238;
+}
+
+/* =========================
+ * Shared base (layout only)
+ * ========================= */
+code[class*='language-'],
+pre[class*='language-'] {
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  font-family: 'Roboto Mono', 'Fira Code', Consolas, Monaco, 'Courier New', monospace;
+  font-size: 0.95em;
+  line-height: 1.6em;
+  -moz-tab-size: 4;
+  -o-tab-size: 4;
+  tab-size: 4;
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
+  overflow-x: hidden;
+}
+
+:not(pre) > code[class*='language-'] {
+  white-space: normal;
+  border-radius: 0.2em;
+  padding: 0.1em;
+}
+
+pre[class*='language-'] {
+  margin: 0.5em 0;
+  padding: 0.875rem 0;
+  border-radius: 0.375rem;
+  transform: translateZ(0);
+}
+
+.remark-code-title + div > pre[class*='language-'] {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  padding: 0.875rem 0;
+  margin-top: 0;
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 .code-highlight {
@@ -50,272 +93,14 @@
   background-color: transparent !important;
 }
 
-.code-line.highlight-line,
-.highlight-line {
-  background: rgba(128, 203, 196, 0.15) !important;
-  border-left: 4px solid #80cbc4;
-  padding-left: calc(0.5rem - 4px);
-  padding-right: 0.5rem;
-  margin-left: 0;
-  width: max-content;
-}
-
-.code-line.inserted {
-  background: rgba(128, 203, 196, 0.2) !important;
-  border-left: 4px solid #80cbc4;
-  padding-left: calc(0.5rem - 4px);
-}
-
-.code-line.deleted {
-  background: rgba(240, 113, 120, 0.2) !important;
-  border-left: 4px solid #f07178;
-  padding-left: calc(0.5rem - 4px);
-}
-
-.line-number::before {
-  display: inline-block;
-  width: 1.75rem;
-  margin-right: 0.5rem;
-  margin-left: -0.125rem;
-  color: #546e7a;
-  text-align: right;
-  content: attr(line);
-}
-
-/* Material Palenight Theme */
-code[class*='language-'],
-pre[class*='language-'] {
-  text-align: left;
-  white-space: pre;
-  word-spacing: normal;
-  word-break: normal;
-  word-wrap: normal;
-  color: #c3cee3;
-  background: #263238;
-  font-family: 'Roboto Mono', 'Fira Code', Consolas, Monaco, 'Courier New', monospace;
-  font-size: 0.95em;
-  line-height: 1.6em;
-  -moz-tab-size: 4;
-  -o-tab-size: 4;
-  tab-size: 4;
-  -webkit-hyphens: none;
-  -moz-hyphens: none;
-  -ms-hyphens: none;
-  hyphens: none;
-  overflow-x: hidden;
-}
-
-code[class*='language-']::-moz-selection,
-pre[class*='language-']::-moz-selection,
-code[class*='language-'] ::-moz-selection,
-pre[class*='language-'] ::-moz-selection {
-  background: #363636;
-}
-
-code[class*='language-']::selection,
-pre[class*='language-']::selection,
-code[class*='language-'] ::selection,
-pre[class*='language-'] ::selection {
-  background: #363636;
-}
-
-:not(pre) > code[class*='language-'] {
-  white-space: normal;
-  border-radius: 0.2em;
-  padding: 0.1em;
-}
-
-pre[class*='language-'] {
-  margin: 0.5em 0;
-  padding: 0.875rem 0;
-  border-radius: 0.375rem;
-  border: 1px solid rgba(137, 221, 255, 0.3);
-  box-shadow:
-    0 6px 12px rgba(0, 0, 0, 0.2),
-    0 1px 3px rgba(0, 0, 0, 0.1),
-    0 0 0 1px rgba(137, 221, 255, 0.05);
-  transform: translateZ(0);
-}
-
-/* Pre with title  */
-.remark-code-title + div > pre[class*='language-'] {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  padding: 0.875rem 0;
-  margin-top: 0;
-  overflow-x: hidden;
-  max-width: 100%;
-}
-
-/* Pre with non-title  */
-pre:not(.remark-code-title + div > pre) {
-  border: 1px solid rgba(137, 221, 255, 0.3);
-  box-shadow:
-    0 6px 12px rgba(0, 0, 0, 0.2),
-    0 1px 3px rgba(0, 0, 0, 0.1),
-    0 0 0 1px rgba(137, 221, 255, 0.05);
-}
-
 .language-css > code,
 .language-sass > code,
 .language-scss > code {
-  color: #fd9170;
+  color: inherit;
 }
 
 [class*='language-'] .namespace {
   opacity: 0.7;
-}
-
-.token.atrule {
-  color: #c792ea;
-}
-
-.token.attr-name {
-  color: #ffcb6b;
-}
-
-.token.attr-value {
-  color: #c3e88d;
-}
-
-.token.attribute {
-  color: #c3e88d;
-}
-
-.token.boolean {
-  color: #c792ea;
-}
-
-.token.builtin {
-  color: #ffcb6b;
-}
-
-.token.cdata {
-  color: #80cbc4;
-}
-
-.token.char {
-  color: #80cbc4;
-}
-
-.token.class {
-  color: #ffcb6b;
-}
-
-.token.class-name {
-  color: #f2ff00;
-}
-
-.token.color {
-  color: #f07178;
-}
-
-.token.comment {
-  color: #546e7a;
-  font-style: italic;
-}
-
-.token.constant {
-  color: #c792ea;
-}
-
-.token.deleted {
-  color: #f07178;
-}
-
-.token.doctype {
-  color: #546e7a;
-}
-
-.token.entity {
-  color: #f07178;
-}
-
-.token.function {
-  color: #c792ea;
-}
-
-.token.hexcode {
-  color: #f2ff00;
-}
-
-.token.id {
-  color: #c792ea;
-  font-weight: bold;
-}
-
-.token.important {
-  color: #c792ea;
-  font-weight: bold;
-}
-
-.token.inserted {
-  color: #80cbc4;
-}
-
-.token.keyword {
-  color: #c792ea;
-  font-style: italic;
-}
-
-.token.number {
-  color: #fd9170;
-}
-
-.token.operator {
-  color: #89ddff;
-}
-
-.token.prolog {
-  color: #546e7a;
-}
-
-.token.property {
-  color: #80cbc4;
-}
-
-.token.pseudo-class {
-  color: #c3e88d;
-}
-
-.token.pseudo-element {
-  color: #c3e88d;
-}
-
-.token.punctuation {
-  color: #89ddff;
-}
-
-.token.regex {
-  color: #f2ff00;
-}
-
-.token.selector {
-  color: #f07178;
-}
-
-.token.string {
-  color: #c3e88d;
-}
-
-.token.symbol {
-  color: #c792ea;
-}
-
-.token.tag {
-  color: #f07178;
-}
-
-.token.unit {
-  color: #f07178;
-}
-
-.token.url {
-  color: #fd9170;
-}
-
-.token.variable {
-  color: #f07178;
 }
 
 .token.bold {
@@ -328,4 +113,329 @@ pre:not(.remark-code-title + div > pre) {
 
 .token.table {
   display: inline;
+}
+
+/* =========================
+ * Light theme (default)
+ * ========================= */
+
+.remark-code-title {
+  @apply font-mono text-xs;
+  background: #eaeef2;
+  color: #24292e;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 0.625rem 0.75rem;
+  margin: 0;
+  border-top-left-radius: 0.375rem;
+  border-top-right-radius: 0.375rem;
+  border: 1px solid rgba(27, 31, 36, 0.08);
+  border-bottom: 0;
+  box-shadow: 0 1px 2px rgba(27, 31, 36, 0.04);
+  position: relative;
+  z-index: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.remark-code-title + div > pre {
+  @apply mt-0 rounded-t-none;
+  padding-left: 0;
+  padding-right: 0;
+  border: 1px solid rgba(27, 31, 36, 0.08);
+  box-shadow: 0 1px 2px rgba(27, 31, 36, 0.04);
+  position: relative;
+  z-index: 1;
+}
+
+code[class*='language-'],
+pre[class*='language-'] {
+  color: #24292e;
+  background: #f6f8fa;
+}
+
+code[class*='language-']::-moz-selection,
+pre[class*='language-']::-moz-selection,
+code[class*='language-'] ::-moz-selection,
+pre[class*='language-'] ::-moz-selection {
+  background: #c8e1ff;
+}
+
+code[class*='language-']::selection,
+pre[class*='language-']::selection,
+code[class*='language-'] ::selection,
+pre[class*='language-'] ::selection {
+  background: #c8e1ff;
+}
+
+pre[class*='language-'] {
+  border: 1px solid rgba(27, 31, 36, 0.08);
+  box-shadow: 0 1px 2px rgba(27, 31, 36, 0.04);
+}
+
+pre:not(.remark-code-title + div > pre) {
+  border: 1px solid rgba(27, 31, 36, 0.08);
+  box-shadow: 0 1px 2px rgba(27, 31, 36, 0.04);
+}
+
+.code-line.highlight-line,
+.highlight-line {
+  background: rgba(175, 184, 193, 0.2) !important;
+  border-left: 4px solid #0969da;
+  padding-left: calc(0.5rem - 4px);
+  padding-right: 0.5rem;
+  margin-left: 0;
+  width: max-content;
+}
+
+.code-line.inserted {
+  background: rgba(46, 160, 67, 0.15) !important;
+  border-left: 4px solid #2ea043;
+  padding-left: calc(0.5rem - 4px);
+}
+
+.code-line.deleted {
+  background: rgba(207, 34, 46, 0.15) !important;
+  border-left: 4px solid #cf222e;
+  padding-left: calc(0.5rem - 4px);
+}
+
+.line-number::before {
+  display: inline-block;
+  width: 1.75rem;
+  margin-right: 0.5rem;
+  margin-left: -0.125rem;
+  color: #8c959f;
+  text-align: right;
+  content: attr(line);
+}
+
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #6a737d;
+  font-style: italic;
+}
+
+.token.punctuation {
+  color: #24292e;
+}
+
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol,
+.token.property,
+.token.hexcode {
+  color: #005cc5;
+}
+
+.token.string,
+.token.attr-value,
+.token.char,
+.token.url,
+.token.attribute {
+  color: #032f62;
+}
+
+.token.operator,
+.token.entity,
+.token.atrule,
+.token.keyword,
+.token.important,
+.token.deleted {
+  color: #d73a49;
+}
+
+.token.important,
+.token.keyword {
+  font-weight: 500;
+}
+
+.token.function,
+.token.class,
+.token.class-name,
+.token.builtin,
+.token.attr-name,
+.token.id {
+  color: #6f42c1;
+}
+
+.token.tag,
+.token.selector,
+.token.regex,
+.token.pseudo-class,
+.token.pseudo-element,
+.token.inserted {
+  color: #22863a;
+}
+
+.token.variable,
+.token.color,
+.token.unit {
+  color: #e36209;
+}
+
+.token.id {
+  font-weight: bold;
+}
+
+/* =========================
+ * Dark theme (.dark scope) — Material Palenight
+ * ========================= */
+
+.dark .remark-code-title {
+  background: #1e2a30;
+  color: #89ddff;
+  border: 1px solid rgba(137, 221, 255, 0.3);
+  border-bottom: 0;
+  box-shadow:
+    0 -2px 10px rgba(137, 221, 255, 0.05),
+    0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.dark .remark-code-title + div > pre {
+  border: 1px solid rgba(137, 221, 255, 0.3);
+  box-shadow:
+    0 6px 12px rgba(0, 0, 0, 0.2),
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(137, 221, 255, 0.05);
+}
+
+.dark code[class*='language-'],
+.dark pre[class*='language-'] {
+  color: #c3cee3;
+  background: #263238;
+}
+
+.dark code[class*='language-']::-moz-selection,
+.dark pre[class*='language-']::-moz-selection,
+.dark code[class*='language-'] ::-moz-selection,
+.dark pre[class*='language-'] ::-moz-selection {
+  background: #363636;
+}
+
+.dark code[class*='language-']::selection,
+.dark pre[class*='language-']::selection,
+.dark code[class*='language-'] ::selection,
+.dark pre[class*='language-'] ::selection {
+  background: #363636;
+}
+
+.dark pre[class*='language-'] {
+  border: 1px solid rgba(137, 221, 255, 0.3);
+  box-shadow:
+    0 6px 12px rgba(0, 0, 0, 0.2),
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(137, 221, 255, 0.05);
+}
+
+.dark pre:not(.remark-code-title + div > pre) {
+  border: 1px solid rgba(137, 221, 255, 0.3);
+  box-shadow:
+    0 6px 12px rgba(0, 0, 0, 0.2),
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(137, 221, 255, 0.05);
+}
+
+.dark .code-line.highlight-line,
+.dark .highlight-line {
+  background: rgba(128, 203, 196, 0.15) !important;
+  border-left: 4px solid #80cbc4;
+}
+
+.dark .code-line.inserted {
+  background: rgba(128, 203, 196, 0.2) !important;
+  border-left: 4px solid #80cbc4;
+}
+
+.dark .code-line.deleted {
+  background: rgba(240, 113, 120, 0.2) !important;
+  border-left: 4px solid #f07178;
+}
+
+.dark .line-number::before {
+  color: #546e7a;
+}
+
+.dark .language-css > code,
+.dark .language-sass > code,
+.dark .language-scss > code {
+  color: #fd9170;
+}
+
+.dark .token.comment,
+.dark .token.prolog,
+.dark .token.doctype,
+.dark .token.cdata {
+  color: #546e7a;
+  font-style: italic;
+}
+
+.dark .token.punctuation,
+.dark .token.operator {
+  color: #89ddff;
+}
+
+.dark .token.atrule,
+.dark .token.boolean,
+.dark .token.constant,
+.dark .token.symbol,
+.dark .token.function,
+.dark .token.keyword {
+  color: #c792ea;
+}
+
+.dark .token.keyword {
+  font-style: italic;
+}
+
+.dark .token.important,
+.dark .token.id {
+  color: #c792ea;
+  font-weight: bold;
+}
+
+.dark .token.attr-name,
+.dark .token.builtin,
+.dark .token.class {
+  color: #ffcb6b;
+}
+
+.dark .token.class-name,
+.dark .token.hexcode,
+.dark .token.regex {
+  color: #f2ff00;
+}
+
+.dark .token.attr-value,
+.dark .token.attribute,
+.dark .token.string,
+.dark .token.pseudo-class,
+.dark .token.pseudo-element {
+  color: #c3e88d;
+}
+
+.dark .token.char,
+.dark .token.cdata,
+.dark .token.inserted,
+.dark .token.property {
+  color: #80cbc4;
+}
+
+.dark .token.color,
+.dark .token.deleted,
+.dark .token.entity,
+.dark .token.selector,
+.dark .token.tag,
+.dark .token.unit,
+.dark .token.variable {
+  color: #f07178;
+}
+
+.dark .token.number,
+.dark .token.url {
+  color: #fd9170;
 }

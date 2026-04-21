@@ -72,7 +72,7 @@ const ErrorIcon = () => (
 const InfoIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    className="h-5 w-5 text-indigo-600 dark:text-indigo-400"
+    className="h-5 w-5 text-violet-600 dark:text-violet-400"
     fill="none"
     viewBox="0 0 24 24"
     stroke="currentColor"
@@ -144,14 +144,14 @@ export const ErrorCallout = ({ children }: { children: ReactNode }) => {
 
 export const InfoCallout = ({ children }: { children: ReactNode }) => {
   return (
-    <div className="bg-indigo-300/20 dark:bg-indigo-700/30 border-l-4 border-indigo-500 rounded-md px-5 pb-0.5 mb-5">
+    <div className="bg-violet-300/20 dark:bg-violet-500/10 border-l-4 border-violet-500 dark:border-violet-500/70 rounded-md px-5 pb-0.5 mb-5">
       <div className="flex items-center pt-5">
         <span className="mr-2">
           <InfoIcon />
         </span>
-        <span className="font-extrabold">Info</span>
+        <span className="font-extrabold text-violet-700 dark:text-violet-400">Info</span>
       </div>
-      {children}
+      <div className="text-gray-800 dark:text-gray-100">{children}</div>
     </div>
   )
 }

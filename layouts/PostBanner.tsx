@@ -2,6 +2,7 @@ import Image from '@/components/common/atoms/Image'
 import Link from '@/components/common/atoms/Link'
 import PageTitle from '@/components/common/atoms/PageTitle'
 import SectionContainer from '@/components/common/atoms/SectionContainer'
+import PostImageZoom from '@/components/posts/atoms/PostImageZoom'
 import Comments from '@/components/posts/organisms/Comments'
 import ScrollTopAndComment from '@/components/posts/organisms/ScrollTopAndComment'
 import siteMetadata from '@/data/siteMetadata'
@@ -46,7 +47,9 @@ export default function PostMinimal({ content, next, prev, children }: LayoutPro
               <PageTitle>{title}</PageTitle>
             </div>
           </div>
-          <div className="prose max-w-none py-4 dark:prose-invert">{children}</div>
+          <PostImageZoom className="prose max-w-none py-4 dark:prose-invert">
+            {children}
+          </PostImageZoom>
           {siteMetadata.comments && (
             <div className="pb-6 pt-6 text-center text-gray-700 dark:text-gray-300" id="comment">
               <Comments slug={slug} />

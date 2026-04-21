@@ -1,0 +1,463 @@
+---
+title: 'CometBft에서 합의 속도와 형평성의 딜레마'
+date: '2026-04-19'
+lastmod: '2026-04-19'
+tags: ['CometBFT', 'IBC', 'CosmosSDK', 'Blockchain']
+draft: false
+summary: 'CometBFT가 의도적으로 블록 생성을 지연시키는 timeout_commit의 진짜 이유를 파헤치고, 억울한 슬래싱 없이 합의 속도를 단축하는 방법에 대해 알아보겠습니다.'
+images: ['/static/images/thumbnail/cometbft-blocktime-dilemma.jpeg']
+canonicalUrl: 'https://lapidix.dev/posts/cometbft-blocktime-dilemma/'
+---
+
+![CometBFT Blocktime Dilemma](/static/images/thumbnail/cometbft-blocktime-dilemma.jpeg)
+
+## 1. Introduction
+
+최근에 많은 기업들이 블록체인을 도입하려는 움직임을 보이고 있습니다. 하지만 블록체인이 대중화되는 데 있어 큰 걸림돌 중 하나는 바로 완결성(Finality)의 속도 문제입니다. 거래가 진행되었음에도 불구하고 거래가 최종 확정되기까지 딜레이가 발생하기 때문에, 즉각적인 반응이 필요한 실생활 서비스에 적용하기가 까다롭습니다.
+
+이를 개선하기 위해 다양한 합의 알고리즘이 연구되고 있으며, 코스모스(Cosmos) 생태계의 대표적인 합의 엔진인 **CometBFT** 역시 그중 하나입니다.
+
+그런데 이 CometBFT의 코드를 깊이 들여다보면, 흥미롭게도 **합의 속도를 의도적으로 지연시키는 코드**가 존재합니다. 이번 글에서는 이 코드가 존재하는 의도와 문제점을 살펴보고, 생태계의 공정성을 해치지 않으면서 합의 속도를 개선할 수 있는 구체적인 방안에 대해 고민해 보고자 합니다.
+
+---
+
+## 2. Tendermint & CometBFT
+
+**CometBFT**의 합의 구조를 깊이 이해하기 위해서는, 그 뿌리가 되는 **Tendermint**에 대한 이해가 먼저 필요합니다.
+
+텐더민트는 근본적으로 **분산 시스템의 고질적인 난제인 Byzantine Generals Problem(비잔틴 장군 문제)를 블록체인 환경에 맞게 해결한 합의 알고리즘**입니다.
+
+일부 노드가 악의적으로 조작되어 거짓 메시지를 보내더라도 전체 시스템은 반드시 동일한 합의 상태에 도달해야만 합니다. 이러한 비잔틴 장애를 극복하고 정상적인 네트워크를 유지할 수 있게 해주는 합의 알고리즘 모델을 **BFT(Byzantine Fault Tolerance, 비잔틴 장애 허용)라고 부릅니다.**
+
+과거 PBFT(Practical BFT) 같은 알고리즘은 소규모 폐쇄망에서만 작동한다는 한계가 있었지만, 텐더민트는 이를 개선하여 수많은 노드가 참여하는 퍼블릭 블록체인, 특히 지분증명(PoS) 환경에서도 빠르고 안전하게 합의를 이룰 수 있도록 설계되었습니다.
+
+이 텐더민트 합의 알고리즘의 가장 큰 특징은 전체 Validator 지분의 2/3 이상이 동의하면 즉시 블록이 확정되는 **Instant Finality(결정론적 완결성)을 보장**한다는 점입니다.
+
+이 BFT 합의 알고리즘과 P2P 네트워크 통신 기능을 묶은 것이 'Tendermint Core'이며, 애플리케이션과의 통신을 위해 ABCI(Application Blockchain Interface)를 도입했습니다.
+
+### 2-1. Tendermint 합의 과정
+
+Tendermint는 비잔틴 장애를 극복하고 즉각적인 완결성을 달성하기 위한 과정을 하나의 **상태 머신**으로 정의하여 수학적으로 설명합니다. 아래 다이어그램은 단일 라운드 내에서 노드들이 어떻게 투표 상태를 전이하는지 보여줍니다.
+
+<figure className="flex flex-col items-center justify-center">
+  <img
+    src="/static/images/cometbft-blocktime-dilemma/tendermint-consensus-process.png"
+    alt="Tendermint Consensus Process"
+  />
+  <figcaption className="text-center text-sm text-gray-400 mt-2">
+    <a
+      href="https://docs.tendermint.com/v0.34/introduction/what-is-tendermint.html"
+      className="text-primary-500 hover:text-primary-600"
+    >
+      Tendermint: Consensus Overview
+    </a>
+  </figcaption>
+</figure>
+
+합의 과정은 크게 블록을 제안하고 투표하는 라운드(Round)와, 합의가 끝난 후 블록을 확정 짓는(Commit) 과정으로 나뉩니다. 비잔틴 노드를 방어하기 위해 각 투표 단계마다 전체 검증자 지분의 2/3 이상이 동의해야만 다음으로 넘어갈 수 있습니다.
+
+1. **Propose (제안 단계)**: 해당 라운드의 Proposer(리더)가 새로운 블록을 제안합니다. 제시간에 블록을 받지 못하거나 유효하지 않으면 `Prevote Nil` 경로로 빠집니다.
+2. **Prevote (사전 투표 단계)**: 블록이 유효하다면 `Prevote Block`, 문제가 있다면 `Prevote Nil`에 투표합니다. 다른 노드들의 투표를 기다리며 2/3 이상의 표가 모이면 다음 단계로 넘어갑니다.
+3. **Precommit (사전 확정 단계)**: 2/3 이상의 동의를 확인한 노드들은 최종적으로 체인에 기록하겠다는 `Precommit Block`을 던집니다. 여기서 2/3 이상의 표를 모으는 데 실패하면 새로운 라운드(New Round)를 시작해 시스템 멈춤을 방지합니다.
+4. **Commit 및 New Height**: 특정 블록에 대해 2/3 이상의 Precommit 표를 얻었다면 블록은 최종 확정(Commit)됩니다. 이후 로컬 DB에 저장하고, 새로운 블록을 쌓기 위해 다음 블록 높이(New Height)로 넘어갑니다.
+
+<Info>
+  **Tendermint Consensus**
+
+- [Tendermint: Consensus without Mining (2014)](https://tendermint.com/static/docs/tendermint.pdf)
+- [The latest gossip on BFT consensus (2018)](https://arxiv.org/abs/1807.04938)
+
+</Info>
+
+### 2-2. CometBFT 합의 과정
+
+**현재 코스모스 생태계의 표준 합의 엔진인 CometBFT**는 텐더민트 코어를 2023년에 공식 포크하여 생태계 주도로 발전하고 있는 후속 프로젝트입니다.
+
+CometBFT가 텐더민트와 구분되는 가장 큰 차별점중 하나는 애플리케이션과의 통신 인터페이스를 확장한 **ABCI++의 도입**입니다. 과거 텐더민트는 합의가 완전히 끝난 뒤에야 애플리케이션 레이어인 Cosmos SDK에 블록을 전달할 수 있었지만, CometBFT는 블록을 제안하기 전인 `PrepareProposal`, 제안받은 직후인 `ProcessProposal`, 심지어 투표 과정인 `VoteExtensions` 등 매 단계마다 애플리케이션이 개입할 수 있는 확장점을 제공합니다.
+
+이를 통해 MEV(Miner Extractable Value) 방지, 오라클 데이터 포함 등 합의 레이어에서의 훨씬 고도화된 작업이 가능해졌습니다.
+
+<figure className="flex flex-col items-center justify-center">
+  <img
+    src="/static/images/cometbft-blocktime-dilemma/cometbft-consensus-process.png"
+    alt="CometBFT Consensus Process"
+  />
+  <figcaption className="text-center text-sm text-gray-400 mt-2">
+    CometBFT Consensus Process
+  </figcaption>
+</figure>
+
+> **_하지만 애플리케이션 레이어의 통신 기능이 고도화되었음에도 불구하고, 기반이 되는 합의 엔진의 3단계 투표 상태 머신인 `Propose -> Prevote -> Precommit` 단계 자체는 텐더민트 시절과 완전히 동일하게 작동합니다._**
+
+<Info>
+  **CometBFT Consensus**
+
+- [CometBFT Consensus](https://docs.cometbft.com/main/spec/consensus/consensus)
+
+</Info>
+
+이러한 3단계 합의 과정이 멈추지 않고 굴러가려면, 네트워크 지연이나 노드 장애에 대비한 다양한 '타임아웃(Timeout)' 로직이 필수적으로 동반되어야 합니다.
+
+그런데 CometBFT 내부를 들여다보면, **단순한 장애 상황에 대비한 타임아웃이 아니라, 2/3 이상의 동의를 달성하여 이미 합의가 끝났음에도 불구하고 의도적으로 블록 생성을 지연시키는 로직**이 존재합니다.
+
+## 3. Timeout commit & Missing
+
+### 3-1. timeout commit
+
+CometBFT에는 `timeout_commit`이라는 설정값이 있습니다. 이는 Precommit 단계에서 블록 확정에 필요한 2/3의 투표가 모두 모였음에도 불구하고 추가적으로 대기하는 시간입니다.
+
+실제로 코드를 살펴보면, 합의가 완료되어 2/3 이상의 Precommit(최종 확정표)이 모였을 때 호출되는 로직 내에서 `timeout_commit` 시간만큼 의도적으로 대기하는 부분을 확인할 수 있습니다.
+
+```go:Go  cometbft/consensus/state.go {13-14}
+func (cs *State) enterNewRound(height int64, round int32) {
+	// ... (중략) ...
+
+	switch cs.Step {
+	case cstypes.RoundStepNewHeight: // timeoutCommit phase
+		if cs.needProofBlock(cs.Height) {
+			// enterPropose will be called by enterNewRound
+			return
+		}
+
+		// 블록 확정에 필요한 2/3 서명을 확보하여 NewHeight 단계에 도달했음에도,
+		// 바로 다음 라운드(NewRound)로 넘어가지 않고 설정된 timeout_commit 시간만큼 대기(Schedule)를 지시함
+		timeoutCommit := cs.StartTime.Sub(cmttime.Now()) + 1*time.Millisecond
+		cs.scheduleTimeout(timeoutCommit, cs.Height, 0, cstypes.RoundStepNewRound)
+
+	// ... (중략) ...
+}
+```
+
+> [state.go GitHub 소스코드](https://github.com/cometbft/cometbft/blob/main/consensus/state.go#L1050-L1058)
+
+이렇게 예약된 타임아웃은 내부 타이머 루틴을 통해 처리됩니다. `scheduleTimeout`으로 넘긴 시간은 `tickChan` 채널을 통해 전달되어 타이머를 시작합니다. 이후 타이머가 만료되어 `timer.C`에서 신호를 받으면, 비로소 합의 엔진에 다음 단계로 넘어가라는 `tockChan` 신호를 보냅니다.
+
+```go:Go  cometbft/consensus/ticker.go
+func (t *timeoutTicker) timeoutRoutine() {
+	t.Logger.Debug("Starting timeout routine")
+	var ti timeoutInfo
+	for {
+		select {
+		// 1. 앞선 state.go에서 scheduleTimeout을 호출하면 tickChan으로 신호가 들어옴
+		case newti := <-t.tickChan:
+			// ... (중략) ...
+			// 전달받은 timeout_commit 시간(ti.Duration)으로 타이머 세팅
+			ti = newti
+			t.timer.Reset(ti.Duration)
+			t.timerActive = true
+
+			t.Logger.Debug("Scheduled timeout", "dur", ti.Duration, "height", ti.Height, "round", ti.Round, "step", ti.Step)
+
+		// 2. 세팅된 시간(timeout_commit)이 모두 지나면 타이머가 울림
+		case <-t.timer.C:
+			t.timerActive = false
+			t.Logger.Info("Timed out", "dur", ti.Duration, "height", ti.Height, "round", ti.Round, "step", ti.Step)
+
+			// 3. 비로소 합의 상태 머신에 시간이 다 되었음을 알려 다음 단계(NewRound)로 넘어가게 함
+			go func(toi timeoutInfo) { t.tockChan <- toi }(ti)
+
+		case <-t.Quit():
+			t.stopTimer()
+			return
+		}
+	}
+}
+```
+
+> [ticker.go GitHub 소스코드](https://github.com/cometbft/cometbft/blob/d9519e1a012c3d7bbd85f16b48113d6185ac5456/consensus/ticker.go#L96-L140)
+
+이처럼 블록 확정에 필요한 표가 다 모였더라도, `timeout_commit` 설정값만큼 타이머 루틴이 돌며 의도적으로 블록 결정 시간을 지연시킵니다.<br/>
+**_코드로 알 수 있듯이 꼭 필요한 작업이라기 보다는 그냥 설정대로 지연만 시킵니다._**
+
+이유에 대해 고민을 해본 결과, 만약 `timeout_commit`이란 값이 없으면 2/3이 모두 모일 경우에는 바로 new height를 만들고 다음 propose로 넘어가기 때문에 물리적으로 거리가 멀거나, 패킷이 손상되거나 하는 네트워크 문제로 투표가 늦게 도착해서 억울한 벨리데이터가 생길 수 있습니다.<br/>
+이때문에 `timeout_commit`이 생긴 것으로 판단됩니다.
+
+실제로 Cosmos SDK 리포지토리의 #2525이슈를 보면, "투표에 늦게 참여한 밸리데이터에게 보상을 조금 덜 주는 방식인 Micro-slashing을 적용할 것인가?" 혹은 "다 같이 보상을 받을 수 있도록 충분히 기다려 줄 것인가?"에 대한 설계 논의가 있었습니다.<br/> 즉, 일부 밸리데이터가 억울하게 보상을 놓치는 상황을 시스템 레벨에서 어떻게 구제할 것인지가 핵심 쟁점이었습니다.
+
+> **관련 이슈 논의:** [cosmos-sdk/issues/2525](https://github.com/cosmos/cosmos-sdk/issues/2525#issuecomment-430838701)
+
+하지만 해당 이슈를 살펴보면 논의만 진행되었을 뿐, 아직 명확한 합의점이나 코드로 적용된 바 없이 실제 구현체에서는 여전히 `TODO`로 남아있습니다.
+
+```go:Go  cosmos-sdk/x/distribution/keeper/allocation.go {12-14}
+	// allocate tokens proportionally to voting power
+	//
+	// TODO: Consider parallelizing later
+	//
+	// Ref: https://github.com/cosmos/cosmos-sdk/pull/3099#discussion_r246276376
+	for _, vote := range bondedVotes {
+		validator, err := k.stakingKeeper.ValidatorByConsAddr(ctx, vote.Validator.Address)
+		if err != nil {
+			return err
+		}
+
+		// TODO: Consider micro-slashing for missing votes.
+		//
+		// Ref: https://github.com/cosmos/cosmos-sdk/issues/2525#issuecomment-430838701
+		powerFraction := math.LegacyNewDec(vote.Validator.Power).QuoTruncate(math.LegacyNewDec(totalPreviousPower))
+		reward := feeMultiplier.MulDecTruncate(powerFraction)
+
+		err = k.AllocateTokensToValidator(ctx, validator, reward)
+		if err != nil {
+			return err
+		}
+
+		remaining = remaining.Sub(reward)
+	}
+```
+
+> [allocation.go GitHub 소스코드](https://github.com/cosmos/cosmos-sdk/blob/d4bd475869271dbe6cccd77458b4bcaaf4a0669e/x/distribution/keeper/allocation.go#L53-L76)
+
+아직 구현되지 않은 것을 보아, 합의 엔진이 굳이 대기 시간을 여전히 갖는 이유 중 하나는 밸리데이터의 **Missing Count와 Jail** 시스템 때문이 아닐까 생각됩니다.
+
+### 3-2. Missing Count
+
+**Missing Count는 말 그대로 밸리데이터가 투표를 제때 하지 못했을 때 올라가는 카운트**입니다. 네트워크는 설정된 **Block Window 내에서 특정 밸리데이터가 허용된 Missing Count인 `Max Missed`를 초과했는지 확인하고, 초과할 경우 해당 밸리데이터를 Jail로 보내 네트워크 참여를 제한**합니다.
+
+<Tip>
+**Max Missed의 계산 방법**<br/>
+`maxMissed = SignedBlocksWindow - MinSignedPerWindow`<br/>
+(최대 허용 miss 수 = 윈도우 크기 - 최소 서명해야 할 블록 수)
+
+</Tip>
+
+```go:Go  cosmos-sdk/x/slashing/keeper/infractions.go
+	minHeight := signInfo.StartHeight + signedBlocksWindow
+	maxMissed := signedBlocksWindow - minSignedPerWindow
+
+	// if we are past the minimum height and the validator has missed too many blocks, punish them
+	if height > minHeight && signInfo.MissedBlocksCounter > maxMissed {
+    ...
+    }
+```
+
+> [infractions.go GitHub 소스코드](https://github.com/cosmos/cosmos-sdk/blob/d4bd475869271dbe6cccd77458b4bcaaf4a0669e/x/slashing/keeper/infractions.go#L109-L113)
+
+실제 어떻게 Missing Count 처리 로직을 살펴보면 아래와 같습니다.
+
+```go:Go  cosmos-sdk/x/slashing/keeper/infractions.go
+// handleValidatorSignature: 각 밸리데이터의 서명 유무를 확인하여 비트맵과 카운트를 업데이트
+func (k Keeper) handleValidatorSignature(ctx context.Context, addr crypto.Address, power int64, signed BlockIDFlag) error {
+	// ... (중략) ...
+
+	// 이번 블록에 서명(Vote)을 했는지 유무 확인
+	missed := signed == types.ValidatorAbsent
+
+	// 서명을 하지 못했다면
+	if missed {
+		// MissedBlocksCounter를 1 증가시킴 (이 카운트가 쌓이면 Jail에 감)
+		signInfo.MissedBlocksCounter++
+		// 비트맵에도 누락 처리
+		err := k.SetMissedBlockBitmapValue(ctx, addr, signInfo.IndexOffset, true)
+	} else {
+		// ... 정상 서명 처리 로직 ...
+	}
+    // ...
+}
+```
+
+보시는 바와 같이, 서명 정보가 `ValidatorAbsent`로 넘어오게 되면 `missed = true`로 판별되어 즉시 MissedBlocksCounter가 1 증가하고, `SetMissedBlockBitmapValue`를 통해 해당 블록의 투표 누락 상태가 기록됩니다.
+
+블록체인은 전 세계에 흩어진 노드들이 Gossip 프로토콜로 통신하는 분산 네트워크이기 때문에 노드 간의 물리적 거리나 네트워크 라우팅 상태에 따라, 특정 노드의 Vote 패킷이 0.1~0.5초가량 늦게 도착하는 **Long-tail 현상**이 필연적으로 발생할 수 있습니다.
+
+그러나 만약 2/3 합의가 끝나는 즉시 다음 블록으로 넘어가 버린다면, 아주 미세하게 늦게 도착한 표들은 전부 무시됩니다. 이로 인해 해당 밸리데이터는 투표를 Missing한 것으로 처리되어 억울하게 페널티를 받게 될 수 있습니다.<br />
+결과적으로 `timeout_commit`은 이러한 네트워크 지연을 흡수하고, 정상 노드들의 표가 누락되어 페널티를 받는 상황을 방지하는 일종의 '유예 시간' 역할을 수행한다고 볼 수 있습니다.
+
+### 3-3. timeout_commit의 한계와 논의의 흐름
+
+결국 `timeout_commit`을 완전히 없애버리면 늦게 도착한 표들이 무시되어 선의의 밸리데이터가 Jail에 가는 상황이 빈번해지므로 당장 제거하기는 어렵습니다.
+
+하지만 분명한 허점도 존재합니다. 이것은 각 밸리데이터별로 설정해야 하는 로컬 값이며, 한 번 실행되면 고정되는 정적인 값이기 때문에 UX 측면에서 좋지 않다는 지적이 꾸준히 제기되었습니다.
+
+이 문제는 2021년 텐더민트에서도 논의가 올라왔고, 2024년 CometBFT에서도 다시 한번 논의가 올라왔습니다.<br/>
+이후 `timeout_commit`을 Deprecated시키고, 이를 `next_block_delay`라는 새로운 파라미터를 통해 제어하는 방향으로 진행되었습니다.
+
+> **관련 논의 이슈**
+>
+> - [Tendermint Issue #5911](https://github.com/tendermint/tendermint/issues/5911)
+> - [CometBFT Issue #2655](https://github.com/cometbft/cometbft/issues/2655)
+
+결국 이 논의는 2024년, 블록 타임의 예측 가능성을 높이는 **ADR 115**를 통해 확정되었습니다.
+
+> [**ADR 115: Predictable Block Times**](https://github.com/cometbft/cometbft/blob/main/docs/references/architecture/adr-115-predictable-block-times.md)
+
+하지만 이 ADR 115의 주 목적은 어디까지나 블록이 생성되는 간격을 일정하게 맞추는 것이었지, 합의 속도 자체를 더 빠르게 만들기 위함은 아니었습니다.
+
+속도를 높이기 위한 시도가 아예 없었던 것은 아닙니다. 최근 코스모스 생태계가 기관들의 요구에 맞춰 PoA 지원을 강화하면서, 설정된 대기 시간을 건너뛸 수 있도록 하는 `skip_timeout_commit` 옵션을 추가하긴 했습니다.
+
+> [Running in Production Guide](https://github.com/cometbft/cometbft/blob/dfcc41ca42076a037b382984f77d7723f8f38e00/docs/core/running-in-production.md?plain=1#L368-L375)
+
+그러나 공식 문서의 가이드라인에도 명시되어 있듯, 이 기능은 경제적 페널티가 관여하지 않는 PoA 환경에서만 권장되는 옵션입니다. 퍼블릭 PoS 환경에서는 억울한 슬래싱 문제가 발생할 수 있으므로 여전히 해당 옵션을 비활성화 상태로 둘 것을 강력히 권장하고 있습니다.
+
+위의 오픈소스 논의 히스토리들을 종합해 보면, 현재의 해결책들은 블록 간격을 일정하게 통제항 UX를 개선하기에는 적합할지 몰라도, **퍼블릭 환경에서 밸리데이터들을 억울한 슬래싱으로부터 보호하면서도 합의 속도를 본질적으로 개선하는 방안**은 아직 아니라는 것을 알 수 있습니다.
+
+## 4. 개선 방향
+
+그렇다면 퍼블릭 PoS 환경에서 `timeout_commit` 대기 시간을 제거하여 합의 속도를 높이면서도, 네트워크 지연으로 인한 밸리데이터들의 부당한 페널티를 방지할 수 있는 구조적 대안은 무엇이 있을지 고민해 보았습니다.
+
+핵심 아이디어는 Missing Count를 평가하고 업데이트하는 기준 시점을 현재의 `n-1` 블록에서 `n-2` 또는 그 이전 블록으로 유예하는 것입니다. 이를 통해 지연 도착한 투표도 유효한 네트워크 참여로 인정해 줄 수 있습니다.
+
+### 4-1. Last Commit 평가 시점 개선
+
+첫 번째는 Finalize Block 시점에 밸리데이터들의 커밋 유무를 확인하고 Missing Count를 업데이트하는 `LastCommit` 평가 기준을 `n-1` 블록에서 `n-2` 이상의 블록 기준으로 변경하는 방안입니다.
+
+<figure className="flex flex-col items-center justify-center">
+  <img
+    src="/static/images/cometbft-blocktime-dilemma/deferred-last-commit-evaluation.png"
+    alt="CometBFT Consensus Process"
+  />
+  <figcaption className="text-center text-sm text-gray-400 mt-2">
+    Deferred LastCommit Evaluation
+  </figcaption>
+</figure>
+
+이 방식의 가장 큰 장점은 Cosmos SDK나 ABCI 레이어의 대대적인 수정 없이, CometBFT 내부에서 `n-2` 블록의 커밋을 수집하도록 수정하는 것만으로 구현이 가능하다는 점입니다.
+
+밸리데이터 노드의 메모리 리소스를 약간 더 사용할 여지는 있지만, 최소한의 아키텍처 변경으로 블록타임 단축 효과를 얻을 수 있습니다.
+
+하지만 이 방식에는 **블록 시간 측정 알고리즘**과의 충돌관련 사이드 이펙트가 존재합니다.<br/>
+합의 엔진에서 새로운 블록의 타임스탬프는 중앙 서버의 시계를 따르지 않고, 대신, 아래와 같이 `LastCommit`에 포함된 이전 블록 참여자들의 Vote 시간들을 모아서 중앙값인 `Median Time`을 도출하여 다음 블록의 공식 시간으로 사용합니다.<br/><br/>
+
+```go:Go  cometbft/state/state.go
+// 실제 CometBFT의 BFT Time(Median Time) 계산 로직
+func (commit *Commit) MedianTime(validators *ValidatorSet) time.Time {
+	weightedTimes := make([]*cmttime.WeightedTime, len(commit.Signatures))
+	totalVotingPower := int64(0)
+
+	for i, commitSig := range commit.Signatures {
+		if commitSig.BlockIDFlag == BlockIDFlagAbsent {
+			continue // Absent는 제외
+		}
+		_, validator := validators.GetByAddress(commitSig.ValidatorAddress)
+		if validator != nil {
+			totalVotingPower += validator.VotingPower
+			// 투표자들의 지분(VotingPower)에 따라 가중치를 부여하여 타임스탬프 수집
+			weightedTimes[i] = cmttime.NewWeightedTime(commitSig.Timestamp, validator.VotingPower)
+		}
+	}
+
+	// 수집된 시간들 중 지분의 중앙값에 해당하는 시간을 반환
+	return cmttime.WeightedMedian(weightedTimes, totalVotingPower)
+}
+```
+
+> [MedianTime GitHub 소스코드](https://github.com/cometbft/cometbft/blob/main/state/state.go#L274-L293)
+
+만약 Missing Count 유예를 위해 `LastCommit`을 `n-1`이 아닌 `n-2` 블록 기준으로 수정해 버리면, 현재 생성 중인 블록의 시간이 직전 블록이 아닌 '두 블록 전'의 시간들로 계산되는 치명적인 시간 오류가 발생할 수 있습니다.
+
+또한 네트워크가 처음 시작되는 제네시스 시점의 처리도 복잡해집니다. 기존에는 첫 번째 블록이 직전 제네시스 정보를 바탕으로 바로 완결성을 가질 수 있었지만, 기준이 이전 단계인 두 블록 전으로 밀려나게 되면 네트워크 초기 구동 시 첫 몇 블록들의 완결성 증명에 공백이 생기거나 추가적인 예외 처리 로직이 강제됩니다.
+
+결론적으로, 이 방식은 단순한 평가 기준 변경처럼 보이지만 블록 타임 계산부터 초기 완결성 증명까지 뜻하지 않은 연쇄적인 아키텍처 수정을 야기하므로 매우 신중한 접근이 필요합니다.
+
+### 4-2. Delayed Commit 데이터 필드 추가
+
+두 번째 접근법은 기존 `LastCommit`을 블록 시간 계산과 즉각적인 합의 용도로 그대로 유지하고, Cosmos SDK의 슬래싱 모듈에 지연된 투표를 별도로 기록할 수 있도록 데이터를 새롭게 추가하는 방안입니다.
+
+<figure className="flex flex-col items-center justify-center">
+  <img
+    src="/static/images/cometbft-blocktime-dilemma/adding-delayed-commit-data-fields.png"
+    alt="CometBFT Consensus Process"
+  />
+  <figcaption className="text-center text-sm text-gray-400 mt-2">
+    Adding Delayed Commit Data Fields
+  </figcaption>
+</figure>
+
+먼저 현재 슬래싱 모듈이 밸리데이터의 상태를 어떻게 관리하는지 살펴보겠습니다. 실제 코드를 살펴보면 슬래싱 모듈은 무거운 비트맵 DB와 단순 누적 카운터를 철저히 분리해서 관리합니다. 만약 합의 엔진에서 넘어오는 즉각적인 투표 정보만 바라보고 이 비트맵에 무작정 실패를 기록해 버리면, 나중에 억울한 슬래싱을 복구(Rollback)하기가 아키텍처상 대단히 까다로워집니다.
+
+```go:Go  cosmos-sdk/x/slashing/types/slashing.pb.go
+// 1. 누적 카운터 (메모리 상주)
+type ValidatorSigningInfo struct {
+	Address             string
+	StartHeight         int64
+	IndexOffset         int64     // 비트맵 위치 계산용 오프셋
+	MissedBlocksCounter int64     // 단순 누적 누락 횟수 (Jail 판단 기준)
+    // ...
+}
+
+// 2. 누락 비트맵 (KVStore에 청크 단위 저장)
+// Key: ValidatorMissedBlockBitmapPrefix + Address + ChunkIndex
+// Value: 1024-bit Array (1=Missed, 0=Signed)
+//
+// [Chunk 0] 001011000100... (비트 0 ~ 1023)
+```
+
+> [slashing.pb.go GitHub 소스코드](https://github.com/cosmos/cosmos-sdk/blob/main/x/slashing/types/slashing.pb.go)
+
+따라서 이러한 기존 상태 관리 구조를 훼손하지 않기 위해, 합의 엔진과 애플리케이션을 연결하는 ABCI 계층 자체를 확장하여 DelayedCommit을 전달하는 방식을 설계해야 합니다. 실제 ABCI++의 `RequestFinalizeBlock`을 다음과 같이 확장해야 합니다.
+
+```protobuf:Protobuf  proto/tendermint/abci/types.proto
+// ABCI 확장
+message RequestFinalizeBlock {
+    repeated bytes txs = 1;
+
+    // 1. 직전 블록 N-1의 정상 투표 정보는 Midian Time을 포함한 기존 로직을 위해 유지
+    CommitInfo decided_last_commit = 2;
+
+    // 2. 두 블록 전 N-2에서 합의 시 Precommit Vote를 전송했으나, 블록 생성 시간 내에 도착하지 못한 필드 추가
+    CommitInfo delayed_commits = 9;
+
+    // ...
+}
+```
+
+> [types.proto GitHub 소스코드](https://github.com/cometbft/cometbft/blob/main/proto/tendermint/abci/types.proto)
+
+슬래싱 모듈이 `DelayedVotes`를 받을 수 있게 되었다면, 남은 과제는 투표 누락을 판정하는 시점 자체를 늦추는 지연 업데이트 설계입니다.
+
+먼저 현재 Cosmos SDK가 투표 누락을 처리하는 로직은 아래와 같습니다.
+
+```go:Go  cosmos-sdk/x/slashing/keeper/infractions.go
+// 직전 블록 N-1의 투표만 보고 즉시 처리하는 로직
+func (k Keeper) HandleValidatorSignature(ctx context.Context, addr cryptotypes.Address, power int64, signed comet.BlockIDFlag) error {
+	// ...
+	missed := (signed == comet.BlockIDFlagAbsent)
+
+	if missed && !previous {
+		// 즉시 카운트를 올리고 비트맵 업데이트
+		k.SetMissedBlockBitmapValue(ctx, consAddr, index, true)
+		signInfo.MissedBlocksCounter++
+	}
+	// ...
+}
+```
+
+보다시피 현재는 특정 블록 시점에 표가 오지 않았다면 즉시 카운트를 올리고 비트맵을 업데이트합니다.
+만약 개선을 위해서 나중에 이 상태를 롤백하는 방식을 사용한다면 시스템의 상태 불일치를 유발할 수 있을것 같습니다.
+
+그래서 대신 평가 시점 자체를 한 템포 유예하는 Deferred Evaluation(지연 평가) 메커니즘을 적용해보려고 합니다.
+
+```go:Go  cosmos-sdk/x/slashing/keeper/infractions.go
+// 두 블록 전 N-2 합의 시 Pre Commit을 보냈지만 시간 안에 도착하지 않은 정보를 위한 필드인 DelayedVotes를 추가
+func (k Keeper) HandleValidatorSignature(ctx context.Context, delayedCommits VoteInfos) error {
+
+	if !delayedCommits.Contains(Validator) {
+		// N-2 블록에 대한 투표 누락을 확정 짓고 카운터 증가 및 비트맵 기록
+		k.SetMissedBlockBitmapValue(ctx, consAddr, index-1, true)
+		signInfo.MissedBlocksCounter++
+	}
+
+}
+```
+
+> [infractions.go GitHub 소스코드](https://github.com/cosmos/cosmos-sdk/blob/main/x/slashing/keeper/infractions.go)
+
+이후 다음 블록의 `FinalizeBlock`에서 `DelayedVotes` 데이터를 수신하여 N-2 블록의 투표를 최종 검토합니다.<br/>
+이 시점까지도 끝내 Vote가 도착하지 않았다면 비로소 Missing Count를 증가시키고 비트맵을 업데이트합니다. 만약 늦게라도 Vote가 들어왔다면 자연스럽게 카운터가 증가하지 않으므로 정상적으로 Commit된 것으로 인정받게 됩니다.
+
+이러한 지연 평가 메커니즘을 설계함으로써 불필요한 상태 롤백을 피하고, 기존 블록 시간 계산 로직도 전혀 건드리지 않도록 해서 합의 엔진의 사이드 이펙트를 최소화할 수 있습니다.<br/>
+시스템 요소 간의 구조적 분리를 유지하면서 문제를 해결하는 안전한 방향이라고 생각됩니다.
+
+---
+
+## 5. Conclusion
+
+현재 이 내용을 학회 코어 팀에 공유했으며, 시스템의 사이드 이펙트를 최소화하고 구조적으로 안전한 두 번째 방안인 DelayedCommit 필드 신설과 지연 업데이트를 중심으로 구체적인 아키텍처 설계와 기술 검증을 진행할 계획입니다.
+
+블록체인은 단순한 분산 소프트웨어가 아니라 참여자들의 인센티브와 페널티 등 경제적 이해관계가 치밀하게 얽힌 시스템입니다.
+이번 연구를 통해 네트워크 성능인 블록타임 단축을 극대화하는 것과 생태계의 공정성인 성실한 밸리데이터 보호를 유지하는 것 사이에 얼마나 팽팽한 딜레마가 존재하는지 깊이 체감할 수 있었습니다.
+
+단순히 합의 엔진의 대기 파라미터 하나를 변경하는 단편적인 접근으로는 블록 타임 단축을 이뤄낼 수 없었습니다. 하위 P2P 네트워크의 물리적 통신 지연부터 합의 엔진의 상태 머신 설계, ABCI 확장, 그리고 최상단 Cosmos SDK의 슬래싱 페널티 로직까지 시스템 계층 전체를 유기적으로 연결하는 거시적인 아키텍처 설계가 필요했습니다.
+
+블록 타임 단축이라는 단편적인 목표에서 출발했지만, 이 과정에서 합의 엔진 깊숙이 얽혀 있는 경제적 인센티브 딜레마와 분산 시스템의 설계 의도를 찾아가며 코어 레벨 아키텍처에 대한 시야를 한층 넓힐 수 있었습니다.<br/>
+
+이러한 설계적 딜레마를 마주하는 과정이 곧 오픈소스의 철학을 가장 가까이서 배우는 길이라고 믿으며, 앞으로도 이와 같은 코어 기술의 본질적인 구조적 문제들에 대해 꾸준히 고민해 보고자 합니다.

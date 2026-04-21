@@ -62,6 +62,11 @@ module.exports = {
         },
         invert: {
           css: {
+            color: theme('colors.zinc.200'),
+            strong: {
+              color: theme('colors.zinc.50'),
+              fontWeight: '600',
+            },
             a: {
               color: theme('colors.primary.500'),
               '&:hover': {

@@ -2,6 +2,7 @@ import Image from '@/components/common/atoms/Image'
 import Link from '@/components/common/atoms/Link'
 import PageTitle from '@/components/common/atoms/PageTitle'
 import SectionContainer from '@/components/common/atoms/SectionContainer'
+import PostImageZoom from '@/components/posts/atoms/PostImageZoom'
 import CustomTOC from '@/components/posts/molecules/CustomTOC'
 import PostMetrics from '@/components/posts/molecules/PostMetrics'
 import Comments from '@/components/posts/organisms/Comments'
@@ -147,7 +148,9 @@ export default async function PostLayout({
               </dd>
             </dl>
             <div className="divide-y divide-zinc-200 dark:divide-zinc-700 xl:col-span-3 xl:row-span-2 xl:pb-0">
-              <div className="prose max-w-none pb-8 pt-10 dark:prose-invert">{children}</div>
+              <PostImageZoom className="prose max-w-none pb-8 pt-10 dark:prose-invert">
+                {children}
+              </PostImageZoom>
 
               {siteMetadata.comments && (
                 <div
