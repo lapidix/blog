@@ -28,7 +28,7 @@ export default function PostMetrics({
       {translationExists && translationLink && (
         <Link
           href={translationLink}
-          className="basis-full justify-center text-sm font-medium leading-6 text-gray-500 dark:text-gray-400 hover:text-primary-500 dark:hover:text-primary-400 transition-colors flex items-center gap-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 p-1 active:scale-95"
+          className="basis-full justify-center text-sm font-medium leading-6 text-gray-500 dark:text-gray-400 hover:text-primary-500 dark:hover:text-primary-400 transition-colors flex items-center gap-2 rounded-md active:scale-95"
         >
           <TranslateIcon className="size-4" />
           {locale === 'en' ? 'Read in Korean' : 'Read in English'}

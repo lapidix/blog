@@ -164,7 +164,7 @@ export default async function PostLayout({
             <footer>
               <div className="divide-zinc-200 text-sm font-medium leading-5 dark:divide-zinc-700 xl:col-start-1 xl:row-start-2 xl:divide-y">
                 <PostMetrics
-                  className="hidden xl:flex w-full items-start justify-center flex-col gap-4 py-4 px-1"
+                  className="hidden xl:flex w-full items-start justify-center flex-col gap-3 py-4 px-1"
                   readingTime={readingTime}
                   viewCount={viewCount}
                   translationLink={translationLink}
@@ -173,11 +173,11 @@ export default async function PostLayout({
                 />
 
                 {tags && (
-                  <div className="py-4 xl:py-8">
-                    <h2 className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  <div className="py-4 xl:py-4">
+                    <h2 className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400 pb-2">
                       Tags
                     </h2>
-                    <div className="flex flex-wrap mt-2">
+                    <div className="flex flex-wrap mt-2 gap-1">
                       {tags.map((tag) => (
                         <Tag className="pr-1 pb-1" key={tag} text={tag} />
                       ))}
@@ -186,7 +186,7 @@ export default async function PostLayout({
                 )}
                 {(next || prev) && (
                   <div className="grid grid-cols-1 gap-4 py-4 xl:py-8">
-                    {prev && prev.path ? (
+                    {prev && prev.path && (
                       <div>
                         <h2 className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                           Previous Article
@@ -195,10 +195,8 @@ export default async function PostLayout({
                           <Link href={`/${prev.path}`}>{prev.title}</Link>
                         </div>
                       </div>
-                    ) : (
-                      <div />
                     )}
-                    {next && next.path ? (
+                    {next && next.path && (
                       <div>
                         <h2 className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                           Next Article
@@ -207,8 +205,6 @@ export default async function PostLayout({
                           <Link href={`/${next.path}`}>{next.title}</Link>
                         </div>
                       </div>
-                    ) : (
-                      <div />
                     )}
                   </div>
                 )}
