@@ -27,13 +27,13 @@ To deeply understand the consensus structure of **CometBFT**, we first need to u
 
 At its core, Tendermint is a consensus algorithm that **adapts the classic distributed-systems problem known as the Byzantine Generals Problem to the blockchain environment**.
 
-Even if some nodes are maliciously manipulated and send false messages, the whole system must still reach the same consensus state. Consensus algorithms that can tolerate such Byzantine faults and still maintain a healthy network are called **BFT (Byzantine Fault Tolerance)**.
+Even if some nodes are maliciously manipulated and send false messages, the whole system must still reach the same consensus state. Consensus algorithms that can tolerate such Byzantine faults and still maintain a healthy network are called **Byzantine Fault Tolerance, or BFT**.
 
-Earlier algorithms like PBFT (Practical BFT) were limited to small closed networks, but Tendermint improved on this so that many nodes can participate and quickly and safely reach consensus — especially in public, Proof-of-Stake (PoS) environments.
+Earlier algorithms like Practical BFT, or PBFT, were limited to small closed networks, but Tendermint improved on this so that many nodes can participate and quickly and safely reach consensus — especially in public Proof-of-Stake, or PoS, environments.
 
-The most notable characteristic of the Tendermint consensus algorithm is that **once more than 2/3 of the total validator stake agrees, the block is finalized immediately — i.e., it guarantees Instant Finality (deterministic finality)**.
+The most notable characteristic of the Tendermint consensus algorithm is that **once more than 2/3 of the total validator stake agrees, the block is finalized immediately, guaranteeing instant, deterministic finality**.
 
-"Tendermint Core" bundles this BFT consensus algorithm with P2P networking, and to communicate with the application layer it introduced ABCI (Application Blockchain Interface).
+"Tendermint Core" bundles this BFT consensus algorithm with P2P networking, and to communicate with the application layer it introduced the Application Blockchain Interface, or ABCI.
 
 ### 2-1. Tendermint Consensus Process
 
@@ -56,10 +56,10 @@ Tendermint describes the process of overcoming Byzantine faults and achieving in
 
 The consensus process is broadly split into a voting Round in which a block is proposed and voted on, and a Commit step that finalizes the block after consensus is reached. To defend against Byzantine nodes, each voting step requires more than 2/3 of the total validator stake to agree before proceeding.
 
-1. **Propose**: The round's Proposer (leader) proposes a new block. If the block doesn't arrive in time or is invalid, the flow falls into the `Prevote Nil` path.
+1. **Propose**: The Proposer, acting as the leader for that round, proposes a new block. If the block doesn't arrive in time or is invalid, the flow falls into the `Prevote Nil` path.
 2. **Prevote**: If the block is valid, nodes vote `Prevote Block`; otherwise they vote `Prevote Nil`. Nodes wait for other nodes' votes and proceed to the next step once more than 2/3 are collected.
 3. **Precommit**: Nodes that have confirmed more than 2/3 of prevotes cast `Precommit Block`, signaling the final intent to record the block on chain. If a 2/3 majority cannot be gathered here, a New Round is started to prevent the system from halting.
-4. **Commit and New Height**: Once more than 2/3 of Precommit votes are obtained for a specific block, the block is finally committed. The block is then stored in the local DB, and the chain advances to the next block height (New Height) to start stacking a new block.
+4. **Commit and New Height**: Once more than 2/3 of Precommit votes are obtained for a specific block, the block is finally committed. The block is then stored in the local DB, and the chain advances to the next block height to start stacking a new block.
 
 <Info>
   **Tendermint Consensus**
@@ -73,9 +73,9 @@ The consensus process is broadly split into a voting Round in which a block is p
 
 **CometBFT**, the current standard consensus engine of the Cosmos ecosystem, is a successor project that was officially forked from Tendermint Core in 2023 and is now developed under the stewardship of the ecosystem.
 
-One of the biggest differentiators of CometBFT compared to Tendermint is the introduction of **ABCI++**, an extended communication interface with the application. In the past, Tendermint could only hand a block to the application layer (Cosmos SDK) after consensus was fully complete, but CometBFT provides extension points for the application to intervene at every step: `PrepareProposal` before proposing a block, `ProcessProposal` just after receiving a proposal, and even `VoteExtensions` during the voting process.
+One of the biggest differentiators of CometBFT compared to Tendermint is the introduction of **ABCI++**, an extended communication interface with the application. In the past, Tendermint could only hand a block to the Cosmos SDK application layer after consensus was fully complete, but CometBFT provides extension points for the application to intervene at every step: `PrepareProposal` before proposing a block, `ProcessProposal` just after receiving a proposal, and even `VoteExtensions` during the voting process.
 
-This enables much more sophisticated work at the consensus layer, such as MEV (Miner Extractable Value) mitigation and oracle data inclusion.
+This enables much more sophisticated work at the consensus layer, such as Miner Extractable Value, or MEV, mitigation and oracle data inclusion.
 
 <figure className="flex flex-col items-center justify-center">
   <img
@@ -108,9 +108,9 @@ CometBFT has a configuration value called `timeout_commit`. This is an additiona
 
 If you look at the actual code, you can see that inside the logic that runs once more than 2/3 of Precommit votes have been gathered — i.e., once consensus is finalized — the engine intentionally waits for the configured `timeout_commit` duration.
 
-```go:Go  cometbft/consensus/state.go {13-14}
+```go:Go  cometbft/consensus/state.go {13-14}
 func (cs *State) enterNewRound(height int64, round int32) {
-	// ... (omitted) ...
+	// ... omitted ...
 
 	switch cs.Step {
 	case cstypes.RoundStepNewHeight: // timeoutCommit phase
@@ -125,7 +125,7 @@ func (cs *State) enterNewRound(height int64, round int32) {
 		timeoutCommit := cs.StartTime.Sub(cmttime.Now()) + 1*time.Millisecond
 		cs.scheduleTimeout(timeoutCommit, cs.Height, 0, cstypes.RoundStepNewRound)
 
-	// ... (omitted) ...
+	// ... omitted ...
 }
 ```
 
@@ -133,7 +133,7 @@ func (cs *State) enterNewRound(height int64, round int32) {
 
 The scheduled timeout is then processed by an internal timer routine. The duration passed into `scheduleTimeout` is delivered through the `tickChan` channel, which starts the timer. Once the timer expires and a signal is received on `timer.C`, the consensus engine finally receives a `tockChan` signal telling it to proceed to the next step.
 
-```go:Go  cometbft/consensus/ticker.go
+```go:Go  cometbft/consensus/ticker.go
 func (t *timeoutTicker) timeoutRoutine() {
 	t.Logger.Debug("Starting timeout routine")
 	var ti timeoutInfo
@@ -141,21 +141,21 @@ func (t *timeoutTicker) timeoutRoutine() {
 		select {
 		// 1. When scheduleTimeout is called from the earlier state.go, the signal arrives on tickChan
 		case newti := <-t.tickChan:
-			// ... (omitted) ...
-			// Set the timer with the received timeout_commit duration (ti.Duration)
+			// ... omitted ...
+			// Set the timer with the received timeout_commit duration, which is ti.Duration
 			ti = newti
 			t.timer.Reset(ti.Duration)
 			t.timerActive = true
 
 			t.Logger.Debug("Scheduled timeout", "dur", ti.Duration, "height", ti.Height, "round", ti.Round, "step", ti.Step)
 
-		// 2. Once the configured duration (timeout_commit) has fully elapsed, the timer fires
+		// 2. Once the configured duration has fully elapsed, the timer fires
 		case <-t.timer.C:
 			t.timerActive = false
 			t.Logger.Info("Timed out", "dur", ti.Duration, "height", ti.Height, "round", ti.Round, "step", ti.Step)
 
 			// 3. Finally notify the consensus state machine that the timeout has expired,
-			//    so it can move on to the next step (NewRound).
+			//    so it can move on to the next step, NewRound.
 			go func(toi timeoutInfo) { t.tockChan <- toi }(ti)
 
 		case <-t.Quit():
@@ -174,13 +174,13 @@ Even though all the votes needed to finalize the block have been gathered, the t
 After thinking about why this exists, I concluded that without a `timeout_commit`, as soon as 2/3 of the votes arrive the engine would immediately advance to a new height and proceed to the next propose. In that case, due to physical distance between nodes, packet loss, or other network issues, some validators' votes could arrive late, leading to unfairly penalized validators.<br/>
 This seems to be the reason `timeout_commit` was introduced in the first place.
 
-Indeed, if you look at issue #2525 in the Cosmos SDK repository, there was a design discussion about whether to "apply micro-slashing (slightly reduced rewards for validators that voted late)" or "wait long enough so that everyone can receive rewards". In other words, the core question was: how should the system rescue validators that might otherwise unfairly miss out on rewards?
+Indeed, if you look at issue #2525 in the Cosmos SDK repository, there was a design discussion about whether to "apply micro-slashing," meaning slightly reduced rewards for validators that voted late, or "wait long enough so that everyone can receive rewards". In other words, the core question was: how should the system rescue validators that might otherwise unfairly miss out on rewards?
 
 > **Related issue discussion:** [cosmos-sdk/issues/2525](https://github.com/cosmos/cosmos-sdk/issues/2525#issuecomment-430838701)
 
 However, looking at that issue, only the discussion has taken place. No clear consensus or code has been applied yet, and the actual implementation still contains a `TODO`.
 
-```go:Go  cosmos-sdk/x/distribution/keeper/allocation.go {12-14}
+```go:Go  cosmos-sdk/x/distribution/keeper/allocation.go {12-14}
 	// allocate tokens proportionally to voting power
 	//
 	// TODO: Consider parallelizing later
@@ -213,16 +213,16 @@ Given that this still isn't implemented, I think one reason the consensus engine
 
 ### 3-2. Missing Count
 
-**Missing Count**, as the name suggests, is a counter that increases when a validator fails to vote in time. The network checks, within a configured **Block Window**, whether a given validator has exceeded the allowed Missing Count (`Max Missed`). If so, the validator is sent to Jail and its participation in the network is restricted.
+**Missing Count**, as the name suggests, is a counter that increases when a validator fails to vote in time. The network checks, within a configured **Block Window**, whether a given validator has exceeded the allowed Missing Count, also known as `Max Missed`. If so, the validator is sent to Jail and its participation in the network is restricted.
 
 <Tip>
 **How to compute Max Missed**<br/>
 `maxMissed = SignedBlocksWindow - MinSignedPerWindow`<br/>
-(maximum allowed misses = window size - minimum blocks that must be signed)
+This means the maximum allowed misses is the window size minus the minimum blocks that must be signed.
 
 </Tip>
 
-```go:Go  cosmos-sdk/x/slashing/keeper/infractions.go
+```go:Go  cosmos-sdk/x/slashing/keeper/infractions.go
 	minHeight := signInfo.StartHeight + signedBlocksWindow
 	maxMissed := signedBlocksWindow - minSignedPerWindow
 
@@ -236,17 +236,17 @@ Given that this still isn't implemented, I think one reason the consensus engine
 
 The actual Missing Count handling logic looks like this:
 
-```go:Go  cosmos-sdk/x/slashing/keeper/infractions.go
+```go:Go  cosmos-sdk/x/slashing/keeper/infractions.go
 // handleValidatorSignature: checks each validator's signature status and updates the bitmap and counter
 func (k Keeper) handleValidatorSignature(ctx context.Context, addr crypto.Address, power int64, signed BlockIDFlag) error {
-	// ... (omitted) ...
+	// ... omitted ...
 
-	// Check whether the validator signed (voted) this block
+	// Check whether the validator signed this block
 	missed := signed == types.ValidatorAbsent
 
 	// If the validator failed to sign
 	if missed {
-		// Increment MissedBlocksCounter by 1 (if this accumulates, the validator goes to Jail)
+		// Increment MissedBlocksCounter by 1. If this accumulates, the validator goes to Jail.
 		signInfo.MissedBlocksCounter++
 		// Also mark as missed in the bitmap
 		err := k.SetMissedBlockBitmapValue(ctx, addr, signInfo.IndexOffset, true)
@@ -319,8 +319,8 @@ Validator nodes may need a little more memory, but we can shorten block time wit
 However, this approach has a side effect that conflicts with the **block-time computation algorithm**.<br/>
 In the consensus engine, a new block's timestamp does not follow any central server clock. Instead, as shown below, it is derived as the `Median Time` of the vote timestamps from the previous block's participants included in `LastCommit`, and that median is used as the new block's official time.<br/><br/>
 
-```go:Go  cometbft/state/state.go
-// The actual CometBFT BFT Time (Median Time) computation logic
+```go:Go  cometbft/state/state.go
+// The actual CometBFT BFT Time, or Median Time, computation logic
 func (commit *Commit) MedianTime(validators *ValidatorSet) time.Time {
 	weightedTimes := make([]*cmttime.WeightedTime, len(commit.Signatures))
 	totalVotingPower := int64(0)
@@ -332,7 +332,7 @@ func (commit *Commit) MedianTime(validators *ValidatorSet) time.Time {
 		_, validator := validators.GetByAddress(commitSig.ValidatorAddress)
 		if validator != nil {
 			totalVotingPower += validator.VotingPower
-			// Collect timestamps, weighted by each voter's stake (VotingPower)
+			// Collect timestamps, weighted by each voter's stake, which is the VotingPower
 			weightedTimes[i] = cmttime.NewWeightedTime(commitSig.Timestamp, validator.VotingPower)
 		}
 	}
@@ -366,28 +366,28 @@ The second approach is to keep the existing `LastCommit` untouched — continuin
 
 First, let's look at how the slashing module currently manages validator state. In the actual code, the slashing module strictly separates the heavy bitmap DB from the simple cumulative counter. If we just look at the immediate vote information coming from the consensus engine and carelessly mark failures in this bitmap, rolling back later to undo unfair slashing becomes architecturally extremely tricky.
 
-```go:Go  cosmos-sdk/x/slashing/types/slashing.pb.go
-// 1. Cumulative counter (in memory)
+```go:Go  cosmos-sdk/x/slashing/types/slashing.pb.go
+// 1. In-memory cumulative counter
 type ValidatorSigningInfo struct {
 	Address             string
 	StartHeight         int64
 	IndexOffset         int64     // offset used to compute bitmap position
-	MissedBlocksCounter int64     // simple cumulative miss count (used for Jail decisions)
+	MissedBlocksCounter int64     // simple cumulative miss count used for Jail decisions
     // ...
 }
 
-// 2. Missed-block bitmap (stored in the KVStore in chunks)
+// 2. Missed-block bitmap stored in the KVStore in chunks
 // Key: ValidatorMissedBlockBitmapPrefix + Address + ChunkIndex
-// Value: 1024-bit Array (1=Missed, 0=Signed)
+// Value: 1024-bit Array where 1 indicates Missed and 0 indicates Signed
 //
-// [Chunk 0] 001011000100... (bits 0 ~ 1023)
+// [Chunk 0] 001011000100... from bit 0 to 1023
 ```
 
 > [slashing.pb.go GitHub source](https://github.com/cosmos/cosmos-sdk/blob/main/x/slashing/types/slashing.pb.go)
 
 Therefore, to avoid damaging this existing state-management structure, we need to design a mechanism that extends the ABCI layer — which connects the consensus engine and the application — to carry DelayedCommit. Concretely, ABCI++'s `RequestFinalizeBlock` needs to be extended as follows.
 
-```protobuf:Protobuf  proto/tendermint/abci/types.proto
+```protobuf:Protobuf proto/tendermint/abci/types.proto
 // ABCI extension
 message RequestFinalizeBlock {
     repeated bytes txs = 1;
@@ -410,7 +410,7 @@ Once the slashing module can receive `DelayedVotes`, the remaining task is to de
 
 Here is how Cosmos SDK currently processes vote misses:
 
-```go:Go  cosmos-sdk/x/slashing/keeper/infractions.go
+```go:Go  cosmos-sdk/x/slashing/keeper/infractions.go
 // Logic that only looks at the previous block N-1's votes and processes them immediately
 func (k Keeper) HandleValidatorSignature(ctx context.Context, addr cryptotypes.Address, power int64, signed comet.BlockIDFlag) error {
 	// ...
@@ -430,7 +430,7 @@ If we tried to improve this by later rolling the state back, we would likely tri
 
 So instead, I want to apply a Deferred Evaluation mechanism that pushes the judgement point back by one beat.
 
-```go:Go  cosmos-sdk/x/slashing/keeper/infractions.go
+```go:Go  cosmos-sdk/x/slashing/keeper/infractions.go
 // Add a DelayedVotes field carrying info about Precommits that were cast for block N-2's consensus
 // but did not arrive in time.
 func (k Keeper) HandleValidatorSignature(ctx context.Context, delayedCommits VoteInfos) error {
@@ -459,7 +459,7 @@ I think this is a safer direction that preserves structural separation between s
 I have shared this content with the core team of our academic society, and we plan to move forward with detailed architectural design and technical verification focused on the second approach — introducing a DelayedCommit field and applying deferred updates — because it minimizes side effects and is structurally safer.
 
 A blockchain is not just a piece of distributed software; it is a system in which participants' incentives and penalties — their economic interests — are tightly intertwined.
-Through this research I was able to deeply appreciate just how tight the dilemma between maximizing network performance (block-time reduction) and preserving ecosystem fairness (protecting honest validators) really is.
+Through this research I was able to deeply appreciate just how tight the dilemma between maximizing network performance, such as block-time reduction, and preserving ecosystem fairness by protecting honest validators really is.
 
 Simply tweaking a single consensus-engine wait parameter was not enough to shorten block time. I needed to design a macro-level architecture that organically connected every layer of the system — from the lower-level physical communication delays in the P2P network, to the consensus-engine state machine, to ABCI extensions, and all the way up to the slashing/penalty logic in the Cosmos SDK.
 
