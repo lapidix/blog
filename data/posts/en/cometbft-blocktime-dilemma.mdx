@@ -37,7 +37,7 @@ The most notable characteristic of the Tendermint consensus algorithm is that **
 
 ### 2-1. Tendermint Consensus Process
 
-Tendermint describes the process of overcoming Byzantine faults and achieving instant finality mathematically, modeling it as a **state machine**. The diagram below shows how nodes transition voting states within a single round.
+Tendermint describes the process of overcoming Byzantine faults and achieving instant finality, modeling it as a **state machine**. The diagram below shows how nodes transition voting states within a single round.
 
 <figure className="flex flex-col items-center justify-center">
   <img
@@ -71,7 +71,7 @@ The consensus process is broadly split into a voting Round in which a block is p
 
 ### 2-2. CometBFT Consensus Process
 
-**CometBFT**, the current standard consensus engine of the Cosmos ecosystem, is a successor project that was officially forked from Tendermint Core in 2023 and is now developed under the stewardship of the ecosystem.
+**CometBFT**, the current standard consensus engine of the Cosmos ecosystem, is a project that was officially forked from Tendermint Core in 2023 and is now developed under the stewardship of the ecosystem.
 
 One of the biggest differentiators of CometBFT compared to Tendermint is the introduction of **ABCI++**, an extended communication interface with the application. In the past, Tendermint could only hand a block to the Cosmos SDK application layer after consensus was fully complete, but CometBFT provides extension points for the application to intervene at every step: `PrepareProposal` before proposing a block, `ProcessProposal` just after receiving a proposal, and even `VoteExtensions` during the voting process.
 
@@ -87,7 +87,7 @@ This enables much more sophisticated work at the consensus layer, such as Miner 
   </figcaption>
 </figure>
 
-> **_However, even though application-layer communication has become more advanced, the underlying three-step voting state machine of the consensus engine — `Propose -> Prevote -> Precommit` — still operates exactly the same way as in the Tendermint era._**
+> **_However, even though application-layer communication has become more advanced, the underlying three-step voting state machine of the consensus engine — `Propose -> Prevote -> Precommit` — still operates the same way as in the Tendermint era._**
 
 <Info>
   **CometBFT Consensus**
@@ -174,7 +174,7 @@ Even though all the votes needed to finalize the block have been gathered, the t
 After thinking about why this exists, I concluded that without a `timeout_commit`, as soon as 2/3 of the votes arrive the engine would immediately advance to a new height and proceed to the next propose. In that case, due to physical distance between nodes, packet loss, or other network issues, some validators' votes could arrive late, leading to unfairly penalized validators.<br/>
 This seems to be the reason `timeout_commit` was introduced in the first place.
 
-Indeed, if you look at issue #2525 in the Cosmos SDK repository, there was a design discussion about whether to "apply micro-slashing," meaning slightly reduced rewards for validators that voted late, or "wait long enough so that everyone can receive rewards". In other words, the core question was: how should the system rescue validators that might otherwise unfairly miss out on rewards?
+Indeed, looking at issue `#2525` in the Cosmos SDK repository, there was a debate over whether to apply micro-slashing to validators who vote late, or to wait long enough to ensure everyone gets rewarded. Ultimately, this was a discussion about protocol-level incentive design: how to reasonably allocate rewards and penalties according to the performance and response speed of validators during block creation.
 
 > **Related issue discussion:** [cosmos-sdk/issues/2525](https://github.com/cosmos/cosmos-sdk/issues/2525#issuecomment-430838701)
 
@@ -209,7 +209,7 @@ However, looking at that issue, only the discussion has taken place. No clear co
 
 > [allocation.go GitHub source](https://github.com/cosmos/cosmos-sdk/blob/d4bd475869271dbe6cccd77458b4bcaaf4a0669e/x/distribution/keeper/allocation.go#L53-L76)
 
-Given that this still isn't implemented, I think one reason the consensus engine still holds on to this waiting period is the validators' **Missing Count and Jail** system.
+**_Given that this still isn't implemented, I think one reason the consensus engine still holds on to this waiting period is the validators' Missing Count and Jail system._**
 
 ### 3-2. Missing Count
 
@@ -262,7 +262,7 @@ As you can see, once signature info arrives as `ValidatorAbsent`, `missed = true
 Because a blockchain is a distributed network of globally scattered nodes communicating over the Gossip protocol, **long-tail** situations are inevitable — depending on the physical distance between nodes or network routing, a particular node's Vote packet can easily arrive 0.1–0.5 seconds late.
 
 However, if the chain advanced to the next block as soon as 2/3 consensus was reached, slightly-late votes would all be discarded. The corresponding validators would then be treated as having missed the vote and unfairly penalized.<br />
-As a result, `timeout_commit` effectively plays the role of a "grace period" that absorbs such network delays and prevents honest nodes' votes from being dropped and penalized.
+As a result, `timeout_commit` effectively acts as a "grace period" that compensates for such network delays, preventing honest nodes from having their votes dropped and being penalized.
 
 ### 3-3. Limits of timeout_commit and how the discussion evolved
 
@@ -344,7 +344,7 @@ func (commit *Commit) MedianTime(validators *ValidatorSet) time.Time {
 
 > [MedianTime GitHub source](https://github.com/cometbft/cometbft/blob/main/state/state.go#L274-L293)
 
-If we change `LastCommit` to be based on the `n-2` block instead of `n-1` just to defer Missing Count, then the time of the currently-being-produced block would be computed from timestamps "two blocks ago" instead of from the previous block — a critical time-error issue.
+If we modify `LastCommit` to be based on block `n-2` instead of `n-1` to defer the Missing Count, the timestamp of the current block would be computed from the times "two blocks ago" rather than the previous block, which could lead to a decrease in timestamp accuracy.
 
 It also complicates genesis-time handling. Previously, the first block could have finality derived directly from the genesis information, but if the basis is pushed back by one step to "two blocks ago", there will be a gap in proving finality for the first few blocks at network bootstrap, or we would be forced to add extra special-case logic.
 
@@ -364,7 +364,9 @@ The second approach is to keep the existing `LastCommit` untouched — continuin
   </figcaption>
 </figure>
 
-First, let's look at how the slashing module currently manages validator state. In the actual code, the slashing module strictly separates the heavy bitmap DB from the simple cumulative counter. If we just look at the immediate vote information coming from the consensus engine and carelessly mark failures in this bitmap, rolling back later to undo unfair slashing becomes architecturally extremely tricky.
+First, let's look at how the current slashing module manages the state of validators.<br/>
+If we examine the actual code, the slashing module strictly separates the management of a heavy bitmap DB from a simple cumulative counter.<br/>
+If it were to recklessly record failures into this bitmap by only looking at the immediate voting information passed down from the consensus engine, it would become very difficult to recover from unfair slashings later on.
 
 ```go:Go  cosmos-sdk/x/slashing/types/slashing.pb.go
 // 1. In-memory cumulative counter
