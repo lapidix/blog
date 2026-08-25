@@ -1,0 +1,454 @@
+---
+title: 'Turborepo와 Vitest, 동시성이 만든 CPU 과부화'
+date: '2026-08-26'
+lastmod: '2026-08-26'
+tags: ['Turborepo', 'Vitest', 'Monorepo', 'Trouble-Shooting', 'Frontend']
+draft: false
+summary: '모노레포 테스트를 돌릴 때마다 CPU 점유율이 오르고, 간헐적으로 실패하던 원인을 Turborepo와 Vitest의 동시성에서 찾아 개선한 과정을 정리했습니다.'
+images: ['/static/images/thumbnail/turborepo-and-vitest-concurrency.png']
+canonicalUrl: 'https://lapidix.dev/posts/turborepo-and-vitest-concurrency/'
+---
+
+![Turborepo와 Vitest, 동시성이 만든 CPU 과부화](/static/images/thumbnail/turborepo-and-vitest-concurrency.png)
+
+## 1. Introduction
+
+저희 팀은 6개의 애플리케이션과 12개의 공용 패키지를 하나의 모노레포에서 관리하고 있습니다.
+
+```text:FileTree showLineNumbers=false
+project
+├─ apps/
+│  ├─ app-a           33
+│  ├─ app-b           30
+│  ├─ app-c           29
+│  ├─ app-d           27
+│  ├─ app-e           14
+│  └─ app-f            3
+└─ packages/
+   ├─ module-a        76
+   ├─ module-b        73
+   ├─ common          56
+   ├─ module-c        54
+   ├─ module-d        49
+   ├─ ui              42
+   ├─ module-e        37
+   ├─ module-f        25
+   ├─ module-g        20
+   ├─ module-h        15
+   ├─ doc-generator   10
+   └─ vitest-config    0
+
+   18 workspaces · 593 test files
+```
+
+워크스페이스 이름 옆의 숫자는 각자 가진 테스트 파일 수입니다. 빌드와 테스트는 Turborepo가 오케스트레이션하고, 각 워크스페이스는 Vitest로 테스트를 실행합니다. 루트에서 `pnpm test`를 실행하면 18개 워크스페이스에 있는 593개 테스트 파일이 전부 돌아가는 구조입니다.
+
+그런데 언제부턴가 CPU 사용량이 말도 안되게 올라가고, 이 명령이 간헐적으로 실패하기 시작했습니다. 실패한 테스트를 단독으로 다시 돌리면 통과하고, 전체를 다시 돌리면 이번에는 다른 테스트가 실패했습니다. 이번 글에서는 이 문제의 원인을 추적하고 개선한 과정을 정리해보려고 합니다.
+
+## 2. 문제 상황
+
+CVE 대응을 위해 의존성 버전을 올리는 작업을 하고 있었습니다. 변경된 파일은 두 개뿐이었습니다.
+
+```text:Output showLineNumbers=false
+ pnpm-lock.yaml      | 10 +++++-----
+ pnpm-workspace.yaml | 20 ++++++++++++--------
+ 2 files changed, 17 insertions(+), 13 deletions(-)
+```
+
+소스 코드는 아무것도 바뀌지 않았는데, 커밋 후 푸시하니 pre-push 훅의 테스트에서 막혔습니다.
+
+```text:Output showLineNumbers=false
+module-c:test:  ❯ src/.../query.hooks.test.tsx    (10 tests | 2 failed)  28599ms
+module-b:test:  ❯ src/.../SelectorPanel.test.tsx  ( 9 tests | 2 failed)  44693ms
+module-a:test:  ❯ src/.../FieldControl.test.tsx   (25 tests | 2 failed)  53321ms
+ui:test:        ❯ src/.../HeaderNav.test.tsx      ( 8 tests | 2 failed)  39877ms
+doc-generator:check-types:  ELIFECYCLE  Command failed.
+```
+
+서로 아무 관련 없는 패키지들이 동시에 실패했고, 심지어 테스트가 아닌 타입 검사 태스크까지 함께 죽었습니다. 실행 중에 시스템 상태를 확인해 보니 CPU 점유율이 계속 올라가 다른 작업을 하기 어려운 상태였고, 이때 load average는 54까지 올라가 있었습니다. 12코어 머신에서 코어 수의 네 배가 넘는 값입니다.
+
+실패한 케이스들을 보면 유독 느립니다. 유닛 테스트인데도 위 출력에서 28초, 44초, 53초, 39초가 걸렸습니다. 실패를 하는 테스트라면 이전 CI에서 걸려졌을텐데, 이상해서 실패한 워크스페이스만 하나씩 다시 돌려 보니 전부 통과했습니다.
+
+```bash:Bash showLineNumbers=false
+$ npx turbo run test --filter=@project/module-c --force
+Test Files  54 passed (54)
+     Tests  1089 passed (1089)
+  Duration  2.85s
+
+$ cd packages/module-c && npx vitest run
+Test Files  54 passed (54)
+     Tests  1089 passed (1089)
+  Duration  2.21s
+```
+
+> `--force`는 이전 테스트의 캐시를 사용해서 성공 처리되는 것을 막고 실제로 다시 실행하기 위한 옵션입니다.
+
+단독으로는 멀쩡한 것을 확인하고 다시 푸시해 보니, 이번에는 다른 워크스페이스들이 죽었습니다.
+
+| 시도 | 실패한 워크스페이스                             |
+| ---- | ----------------------------------------------- |
+| 1회  | module-c, module-b, module-a, ui, doc-generator |
+| 2회  | module-c, module-g, app-c, app-d, module-e      |
+
+## 3. 원인 분석
+
+매번 다른 워크스페이스가 실패하고, 수정된 코드가 없으므로 특정 테스트의 문제가 아니라고 판단했습니다. 테스트 코드가 잘못된게 아니라면 남는 것은 테스트가 실행되는 환경입니다. 현재 레포에서 테스트 코드 환경 및 동시 실행 수를 정하는 곳은 두 군데, Turborepo와 Vitest입니다.
+
+### 3-1. Turborepo는 워크스페이스를 몇 개나 동시에 돌릴까?
+
+루트의 test 스크립트는 아래와 같이 되어 있습니다.
+
+```json:JSON package.json
+{
+  "scripts": {
+    "test": "turbo run test"
+  }
+}
+```
+
+현재는 동시 실행 설정인 `--concurrency`를 넘기지 않았고, 이 경우 Turborepo는 기본값인 10으로 동작합니다.
+다만 10개를 채우려면 실행 가능한 태스크가 그만큼 있어야 합니다. Turborepo는 `turbo.json`의 `dependsOn`을 읽어 태스크 사이의 선후 관계를 만들고, 선행 태스크가 끝난 것부터 실행 가능 상태로 변경하고 진행합니다.
+
+```jsonc:JSON turbo.json
+// turbo.json
+{
+  "tasks": {
+    "test": {}, // 선행 조건 없음
+    "check-types": { "dependsOn": ["^check-types"] }, // 의존하는 패키지가 먼저
+  },
+}
+```
+
+`check-types`의 경우에는 `common`이 끝나야 `ui`가 돌고, `ui`가 끝나야 앱들이 도는 식이라 동시에 실행되는 한번에 도는 태스크가 적습니다. 반면 `test`에는 선행 조건이 없어서 18개 워크스페이스가 처음부터 모두 실행 가능하고, Turborepo는 이 중 10개를 동시에 실행합니다.
+
+### 3-2. Vitest는 인스턴스당 워커를 몇 개나 띄울까
+
+각 워크스페이스의 `test` 스크립트는 `vitest run`입니다. Vitest는 테스트 파일을 나눠 돌릴 워커 프로세스를 여러 개 띄우는데, 최대 몇 개를 띄울지는 `maxWorkers`로 정합니다. 저희 공용 설정인 `vitest-config`은 `pool: "vmThreads"`를 쓰고 있었고 `maxWorkers`는 따로 지정되어 있지 않았습니다. 값이 없으면 Vitest가 동작하는 환경의 코어 수를 보고 직접 정합니다. `v4.1.8` 소스를 보면 이렇습니다.
+
+```ts:TypeScript packages/vitest/src/node/pool.ts {15}
+// packages/vitest/src/node/pool.ts
+function resolveMaxWorkers(project: TestProject) {
+  if (project.config.maxWorkers) return project.config.maxWorkers
+  if (project.vitest.config.maxWorkers) return project.vitest.config.maxWorkers
+
+  const numCpus =
+    typeof nodeos.availableParallelism === 'function'
+      ? nodeos.availableParallelism()
+      : nodeos.cpus().length
+
+  if (project.vitest.config.watch) {
+    return Math.max(Math.floor(numCpus / 2), 1)
+  }
+
+  return Math.max(numCpus - 1, 1)
+}
+```
+
+`vitest run`은 watch 모드가 아니므로 `코어 수 - 1`로 동작합니다. 제 로컬 환경은 12코어라 11개가 됩니다.
+Vitest를 하나만 돌린다면 이상하지 않습니다. 문제는 Turborepo가 이런 Vitest 인스턴스를 10개 동시에 띄운다는 데 있습니다.
+
+### 3-3. 10 × 11 = 110..
+
+```text showLineNumbers=false
+Turborepo:  동시에 10개 워크스페이스
+Vitest:     인스턴스당 11개 워커
+            ─────────────────────
+            10 × 11 = 110
+```
+
+Turborepo의 `--concurrency`와 Vitest의 `maxWorkers`는 서로 다른 설정 파일에 있고, 어느 쪽도 상대를 참조하지 않습니다. 그래서 두 값이 그대로 곱해져 12코어 머신에 워커가 최대 110개까지 올라갈 수 있습니다.
+물론 항상 110개가 뜨는 것은 아닙니다. Vitest는 큐에 쌓인 테스트 파일을 하나씩 꺼내 워커에 맡기다가, 실행 중인 워커가 `maxWorkers`에 도달하면 더 이상 꺼내지 않기 때문입니다.
+
+```ts:TypeScript packages/vitest/src/node/pools/pool.ts {3}
+// packages/vitest/src/node/pools/pool.ts:67
+private async schedule(): Promise<void> {
+  if (this.queue.length === 0 || this.activeTasks.length >= this.maxWorkers) {
+    return
+  }
+
+  const { task, resolver, method } = this.queue.shift()!
+  ...
+}
+```
+
+즉 큐가 먼저 비면 `maxWorkers`까지 가지 않습니다. 테스트 파일이 11개보다 적은 워크스페이스는 파일 수만큼만 워커를 띄운다는 뜻입니다.
+
+실제로 그렇게 동작하는지 워크스페이스별로 워커 수를 세어 봤습니다. 그런데 세는 방법에 함정이 하나 있습니다. `vmThreads` 풀의 워커는 별도 프로세스가 아니라 `worker_threads` 스레드입니다. `ps`로 프로세스 목록을 봐도 Vitest 프로세스 하나만 보이고 워커는 잡히지 않으므로, 그 프로세스가 가진 스레드 수를 세야 합니다.
+
+```bash:Bash showLineNumbers=false
+$ npx vitest run &        # 테스트를 백그라운드로 실행해 두고 밖에서 관찰합니다.
+                          # maxWorkers 미지정이므로 워커는 코어 수 - 1 = 최대 11개
+
+$ ps -M <pid> | wc -l     # <pid>는 위에서 띄운 Vitest 프로세스의 PID.
+                          # -M은 이 프로세스의 스레드를 한 줄에 하나씩 출력하므로
+                          # wc -l로 줄 수를 세면 그 순간의 스레드 수가 됩니다
+```
+
+> `ps -M`은 macOS 기준이고, 리눅스라면 `ps -T -p <pid>`로 바꾸면 됩니다. 테스트가 도는 동안 반복해서 찍어 최댓값을 기록했습니다.
+
+다만 스레드 수가 곧 워커 수는 아닙니다. 메인 스레드, V8의 GC·컴파일러 헬퍼, libuv 스레드풀처럼 테스트와 무관하게 항상 떠 있는 스레드가 섞여 있기 때문입니다. 제 환경에서는 이 기준선이 13개였고, 아래 표의 마지막 열은 전체 스레드에서 13을 뺀 값입니다.
+
+| 워크스페이스  | 테스트 파일 | 최대 스레드 | 기준선 제외 |
+| ------------- | ----------- | ----------- | ----------- |
+| app-f         | 3           | 16          | 3           |
+| doc-generator | 10          | 23          | 10          |
+| module-h      | 15          | 24          | 11 (상한)   |
+| module-c      | 54          | 24          | 11 (상한)   |
+
+기준선을 뺀 값이 파일 수와 그대로 맞아떨어지다가 11에서 멈춥니다. 워커는 `min(파일 수, 11)`개까지 뜨는 것을 확인했습니다.
+
+그래서 동시에 뜨는 워커 총합은 Turborepo가 어떤 10개를 집느냐에 따라 달라집니다. 파일이 많은 워크스페이스가 몰리면 110에 가까워지고, 적은 쪽이 섞이면 그나마 내려갑니다.
+그러나 어느 쪽이든 12코어를 넘습니다. 매번 다른 워크스페이스가 죽었던 이유도 여기에 있었습니다. 실행할 때마다 조합이 달라지니 CPU를 빼앗기는 쪽도 달라지고, 그렇게 느려진 테스트가 제한 시간을 넘겨 실패한 것입니다.
+
+## 4. 측정
+
+원인을 짐작했으니 실제로 얼마나 초과되는지 측정해 보았습니다. 지표로는 load average를 썼습니다. 코어 수와 비교하면 초과 구독 정도를 바로 읽을 수 있기 때문입니다.
+
+<Note>
+  **load average란?**
+
+시스템이 얼마나 바쁜지를 나타내는 OS 지표로, CPU 차례를 원하는 스레드 수의 시간 평균입니다. `uptime`을 치면 나오는 세 숫자가 각각 최근 1분·5분·15분 평균입니다.
+
+여기서 "CPU 차례를 원한다"는 것은 두 상태를 합친 말입니다. 지금 코어를 잡고 도는 실행 중(running)과, 일할 준비는 됐지만 빈 코어가 없어 줄 서 있는 실행 대기(runnable)입니다. I/O를 기다리거나 놀고 있는 스레드는 세지 않으므로, 떠 있는 프로세스가 아무리 많아도 다들 놀고 있으면 load는 낮습니다.
+
+읽을 때는 코어 수와 비교합니다. load는 CPU의 수요이고 코어 수는 공급이기 때문입니다. 12코어에서 load 12면 코어마다 스레드가 하나씩 도는 포화 상태이고, 64면 자리 12개에 스레드 64개가 몰려 평균 52개가 차례를 기다리고 있다는 뜻입니다. (리눅스는 uninterruptible I/O 대기도 함께 세지만, 이 글의 측정 환경인 macOS는 대체로 CPU 수요만 셉니다.)
+
+</Note>
+
+이 값을 1초 간격으로 샘플링하면서 명령을 실행하는 스크립트를 만들었습니다.
+
+```bash:Bash measure-load.sh
+#!/bin/bash
+# measure-load.sh —> 인자로 받은 명령을 실행하는 동안 load average를 기록합니다.
+SAMPLES=$(mktemp)                       # 샘플을 쌓아둘 임시 파일
+
+# 백그라운드에서 1초마다 1분 평균 load를 파일에 한 줄씩 추가합니다.
+( while true; do sysctl -n vm.loadavg | awk '{print $2}' >> "$SAMPLES"; sleep 1; done ) &
+SAMPLER=$!
+trap 'kill $SAMPLER 2>/dev/null' EXIT   # 스크립트가 어떻게 끝나든 샘플러 정리합니다.
+
+START=$(date +%s)
+"$@" > /dev/null 2>&1                   # 받은 명령을 그대로 실행하고 출력은 버립니다.
+CODE=$?
+END=$(date +%s)
+
+kill $SAMPLER 2>/dev/null; wait $SAMPLER 2>/dev/null
+echo "exit      : $CODE"                             # 명령의 종료 코드. 0이 아니면 실패
+echo "wall      : $((END-START))s"                   # 총 실행 시간
+echo "load 최대 : $(sort -rn "$SAMPLES" | head -1)"  # 샘플 중 최댓값
+```
+
+`$2`가 1분 평균인 이유는 macOS의 출력 형태 때문입니다.
+
+```bash:Bash showLineNumbers=false
+$ sysctl -n vm.loadavg
+{ 2.35 15.00 36.89 }
+```
+
+여는 중괄호가 첫 번째 필드로 잡히기 때문에 1분 평균은 `$1`이 아니라 `$2`입니다.
+
+측정할 때는 `--force`를 붙였습니다. Turborepo 캐시가 남아 있으면 테스트가 실제로 돌지 않고 이전 결과만 재생되어 부하도 잡히지 않기 때문입니다.
+
+```bash:Bash showLineNumbers=false
+$ ./measure-load.sh pnpm test --force
+exit      : 1
+wall      : 70s
+load 최대 : 64.41
+```
+
+12코어 환경에서 load가 64.41까지 올라갔고 테스트는 실패했습니다. 70초 동안 1초 간격으로 찍힌 샘플 중 몇 개를 순서대로 골라 보면 아래와 같습니다.
+
+```text:Output showLineNumbers=false
+2.35 →  15.00 →  36.89 →  52.30 →  64.41
+```
+
+실행 내내 꾸준히 상승합니다. 마지막 값 기준으로 코어는 12개인데 CPU를 원하는 스레드는 64개, 다섯 배가 넘습니다. 워커 입장에서는 다섯 번에 한 번꼴로만 차례가 오는 셈이라, 테스트 코드 자체는 이상이 없더라도 제한 시간을 넘기게 됩니다.
+
+<Note>
+  **왜 숫자가 계속 오르기만 할까?**
+
+load average의 "1분 평균"은 최근 60초를 균등하게 평균 낸 값이 아닙니다. 커널이 몇 초마다 기존 값에 새 측정값을 조금씩 섞어 넣는 지수이동평균이라, 부하가 갑자기 걸려도 숫자는 한 번에 뛰지 않고 실제 수요를 서서히 쫓아갑니다. 뜨거운 물에 담근 온도계와 같습니다. 물은 이미 100도인데 눈금은 천천히 올라갑니다.
+
+위 샘플이 70초 내내 상승만 한 것은 부하가 점점 심해져서가 아닙니다. 수요는 시작 직후부터 이미 저 값들보다 높았고, 숫자가 따라잡는 도중에 실행이 끝난 것입니다. 즉 64.41은 실제 피크가 아니라 온도계가 따라가다 만 지점이고, 실제 수요는 그보다 높았습니다.
+
+같은 이유로 이 값을 절대값으로 비교하는 것은 무리가 있습니다. 오래 도는 명령일수록 숫자가 따라잡을 시간이 많아 높게 찍히기 때문입니다. 여기서는 코어 수 12를 크게 넘겨 계속 상승했다는 경향만 읽으면 충분하다고 생각합니다. 문제 상황에서 본 54와 여기서의 64.41이 다른 것도 마찬가지입니다. 실행마다, 그리고 측정 시점마다 달라지는 값입니다.
+
+</Note>
+
+## 5. 개선
+
+원인이 두 값의 곱이라면, 곱한 결과가 코어 수 근처가 되도록 양쪽을 함께 줄이면 됩니다. 두 곳을 수정했습니다.
+
+```json:JSON package.json
+// package.json
+{ "scripts": { "test": "turbo run test --concurrency=50%" } }
+```
+
+```ts:TypeScript packages/vitest-config/base.ts
+// packages/vitest-config/base.ts
+maxWorkers: 2,
+```
+
+`--concurrency=50%`는 고정값이 아니라 코어 수 비례라서 8코어면 4, 16코어면 8이 됩니다. 코어 수가 다른 환경에도 유연하게 대응하기 위해 %로 지정했습니다. 이렇게 하면 워크스페이스 수는 코어의 50%에 인스턴스당 워커 수 2를 곱한 총 워커 수가 어떤 머신에서든 대략 코어 수와 같아집니다. 제 로컬 환경 기준으로는 이렇습니다.
+
+```text showLineNumbers=false
+Turborepo:  12코어의 50% = 6개 워크스페이스
+Vitest:     인스턴스당 2개 워커
+            ─────────────────────
+            6 × 2 = 12  ≈  코어 수
+```
+
+같은 환경에서 다시 측정했습니다.
+
+|           | 개선 전 | 개선 후 |
+| --------- | ------- | ------- |
+| 결과      | 실패    | 성공    |
+| wall      | 70s     | 26s     |
+| load 최대 | 64.41   | 7.35    |
+
+결과를 확인해보니 오히려 CPU를 덜 쓰게 했더니 2.7배 빨라졌습니다.
+코어는 12개인데 스레드가 110개면 동시에 도는 것은 어차피 12개뿐입니다. 나머지는 OS가 코어를 짧게 쪼개 돌아가며 실행시키는데, 스레드가 교체될 때마다 실행 상태를 저장하고 복원하는 컨텍스트 스위칭이 일어나고, 이전 스레드가 CPU 캐시에 올려 둔 데이터도 밀려나서 메모리에서 다시 읽어 와야 합니다. 둘 다 테스트 실행에는 기여가 없는 순수 비용입니다. 그래서 병렬도가 코어 수를 넘어선 뒤로는 스레드를 늘려도 일이 그만큼 더 되는 게 아니라 교체 비용만 쌓입니다. 110을 12로 줄인 것은 같은 일을 이 비용 거의 없이 하게 만든 것입니다. 여기에 더해 개선 전 70초에는 CPU를 빼앗긴 테스트들이 제한 시간을 넘겨 실패할 때까지 늘어진 시간도 포함되어 있었습니다.
+
+12코어에서 `6 × 2`가 최선인지도 궁금해서 조합을 바꿔 가며 확인해 봤습니다.
+
+| turbo × workers               | wall |
+| ----------------------------- | ---- |
+| `12 × 1` · `6 × 2` · `12 × 2` | 21s  |
+| `4 × 3`                       | 25s  |
+| `18 × 1`                      | 30s  |
+| `2 × 6`                       | 46s  |
+
+확인해 보니 `6 × 2`만 정답인 것은 아니었습니다. 한쪽을 극단으로 몰아 병목을 만들지만 않으면 배분은 크게 민감하지 않았습니다. 다만 워커를 1개로 두는 조합은 시간은 비슷해도 다른 문제가 있었는데, 6-2에서 다시 나옵니다.
+
+## 6. CI 환경: 컨테이너가 보는 코어 수
+
+여기까지는 제 로컬 환경 기준의 해결이었습니다. 그런데 `--concurrency=50%`도 Vitest 기본값도 결국 코어 수에 비례하는 값인데, 그 코어 수를 어디서 얻는지가 남아 있었습니다. 확인해 보니 CI 러너에서는 이 값이 실제 가용량과 다르게 잡히고 있었습니다.
+
+저희 CI 러너는 쿠버네티스 파드입니다. 파드는 `limits.cpu`로 CPU를 제한받는데, 이것은 코어를 가리는 방식이 아닙니다. 파드에는 노드의 코어가 전부 보이는 채로, cgroup 쿼터로 CPU 시간만 제한됩니다.
+
+<Note>
+  **cgroup이란?**
+
+control group의 줄임말로, 리눅스 커널이 프로세스 묶음 단위로 CPU 시간과 메모리 같은 자원을 제한하는 기능입니다. 컨테이너의 실체가 이것입니다. 쿠버네티스 파드도 cgroup으로 자원을 제한받는 리눅스 프로세스들이고, `limits.cpu`와 `limits.memory`가 곧 이 한도로 커널에 걸립니다.
+
+한도는 `/sys/fs/cgroup` 아래에 파일로 노출됩니다. `limits.cpu`가 2인 파드에서 `cpu.max`를 읽으면 `200000 100000`이 나오는데, 100ms마다 CPU 시간을 200ms까지, 즉 코어 2개어치만 쓸 수 있다는 뜻입니다. 메모리 한도는 `memory.max`에 적히고, 넘으면 OOM으로 프로세스가 죽습니다. v1과 v2는 파일 구조의 세대 차이라, 노드가 어느 쪽일지 몰라 6-1에서는 두 경로를 모두 읽습니다.
+
+</Note>
+
+그런데 3-2의 코드에서 봤듯 Vitest는 `maxWorkers` 기본값을 `os.availableParallelism()`으로 정하고, 이 함수는 지금 프로세스가 볼 수 있는 코어 수를 셀 뿐입니다. CPU 시간 제한은 알 방법이 없습니다. 그래서 `limits.cpu`가 2인 파드가 16코어 노드에 뜨면 16을 보고하고, 그 값으로 계산한 병렬도는 실제 가용량의 8배가 됩니다. 로컬에서 겪은 초과 구독이 CI에서 그대로 재현되는 셈입니다.
+
+### 6-1. cgroup 쿼터 직접 읽기
+
+결국 쿼터는 직접 읽어야 합니다. Node의 표준 API 중에는 쿼터를 반영한 코어 수를 주는 것이 없지만, 한도 자체는 위에서 본 것처럼 cgroup 파일에 그대로 적혀 있습니다. 그래서 이 파일에서 쿼터를 읽고, OS가 보고한 코어 수와 쿼터 중 작은 쪽을 실제 가용 CPU로 쓰는 함수를 만들었습니다.
+
+```js:JavaScript scripts/resource-budget.mjs
+// scripts/resource-budget.mjs
+export function effectiveCpus(root = '/sys/fs/cgroup') {
+  const reported = os.availableParallelism?.() ?? os.cpus().length
+  const quota = cgroupQuota(root) // v2: cpu.max, v1: cfs_quota/period
+  return quota == null ? reported : Math.max(1, Math.min(reported, Math.floor(quota)))
+}
+```
+
+cgroup 파일이 없는 환경에서는 기존 값으로 떨어집니다. 실제로 그렇게 동작하는지는 임시 디렉터리에 가짜 cgroup 파일을 만들고 그 경로를 `root`로 넘기는 방식으로, 네 가지 경로를 확인했습니다.
+
+| 환경                | `availableParallelism()` | `effectiveCpus()` |
+| ------------------- | ------------------------ | ----------------- |
+| macOS               | 12                       | 12                |
+| cgroup v2 `limit 2` | 12                       | 2                 |
+| cgroup v2 `무제한`  | 12                       | 12                |
+| cgroup v1 `limit 3` | 12                       | 3                 |
+
+### 6-2. 진입점에서 한 번만 계산하기
+
+남은 일은 이 값을 쓰게 만드는 것입니다. 지금까지는 Turborepo와 Vitest가 각자 코어 수를 보고 병렬도를 정했고, 그게 문제의 원인이었습니다. 그래서 실행 진입점 스크립트를 하나 만들어 병렬도를 여기서 한 번만 계산하고, 두 도구에는 환경변수로 내려주기로 했습니다.
+
+```js:JavaScript scripts/turbo-run.mjs
+// scripts/turbo-run.mjs
+const concurrency = Math.max(1, Math.floor(cpus / workersPerTask))
+const workers = Math.max(workersPerTask, Math.floor(cpus / concurrency))
+
+process.env.TURBO_CONCURRENCY ??= String(concurrency)
+process.env.VITEST_MAX_WORKERS ??= String(workers)
+```
+
+`workersPerTask`는 태스크 성격에 따라 호출부에서 넘기는 값으로, 테스트는 2를 씁니다. 인스턴스당 워커 2개를 기준으로 동시 태스크 수를 먼저 정하고, 나눗셈에서 남은 몫이 있으면 워커 수를 올려 흡수합니다. 12코어면 `6 × 2`, 3코어면 `1 × 3`이 됩니다.
+
+남는 몫을 태스크가 아니라 워커에 주는 데는 이유가 있습니다. 처음에는 반대로 워커를 1개로 줄여 동시 태스크 수를 늘렸고, `cpu=3`인 CI 러너에서 `3 × 1`이 됐습니다. 그랬더니 테스트가 깨졌습니다.
+
+```ts:TypeScript packages/vitest/src/node/pool.ts {3}
+// packages/vitest/src/node/pool.ts
+// Non-isolated single worker can receive all files at once
+if (isolate === false && maxWorkers === 1) { ... }
+```
+
+저희 공용 설정이 쓰는 `pool: "vmThreads"`는 `isolate`가 강제로 `false`입니다. 여기에 워커까지 1개면 위 경로를 타서, 모든 테스트 파일이 컨텍스트 하나를 같이 쓰게 됩니다. 원래는 파일마다 새 컨텍스트에서 시작하므로 모듈 상태와 mock이 매번 초기화됩니다. 컨텍스트를 같이 쓰면 앞 파일이 걸어둔 mock과 모듈에 쌓인 상태가 다음 파일까지 남고, 테스트가 서로 간섭하기 시작합니다. 로컬에서도 그대로 재현됐습니다. `workers=1`로 강제하면 16개가 실패하고, 2나 3으로 올리면 전부 통과합니다. 제 노트북은 12코어라 어느 방식이든 `6 × 2`가 나옵니다. 로컬에서는 한 번도 밟을 일이 없던 조건이라, 코어가 적은 CI에서야 드러난 것입니다.
+
+계산이 정해졌으니 루트의 스크립트가 이 설정을 적용하도록 바꿨습니다.
+
+```json:JSON package.json
+// package.json
+{
+  "scripts": {
+    "test": "node scripts/turbo-run.mjs --workers-per-task=2 --memory-per-task=2 test",
+    "check-types": "node scripts/turbo-run.mjs --workers-per-task=1 --memory-per-task=3 check-types"
+  }
+}
+```
+
+Vitest 쪽은 손댈 것이 없었습니다. `VITEST_MAX_WORKERS`가 설정되어 있으면 Vitest가 시작할 때 읽어 `maxWorkers`로 쓰기 때문입니다.
+
+```ts:TypeScript packages/vitest/src/node/config/resolveConfig.ts
+// packages/vitest/src/node/config/resolveConfig.ts
+if (process.env.VITEST_MAX_WORKERS) {
+  resolved.maxWorkers = Number.parseInt(process.env.VITEST_MAX_WORKERS)
+}
+```
+
+Vitest는 config 파일을 다 읽은 뒤에 이 변수를 읽습니다. config 파일에 `maxWorkers`를 뭐라고 적어도 이 변수가 있으면 덮어써지고, config에서 값을 검증해도 소용이 없습니다. 실수로 `-1` 같은 값이 들어가면 테스트가 하나도 돌지 않고 `Unexpected numerical input for "memoryLimit"`이라는 메시지로 죽습니다. 메시지만 봐서는 원인을 짐작하기 어렵습니다. 검증 코드는 값을 만들어 내려주는 진입점 스크립트에 넣었습니다.
+
+다 붙이고 돌렸는데 33s에 load 25.03이 나왔습니다. 기대한 12의 두 배입니다. Turborepo는 `envMode`가 `strict`면 `turbo.json`에 선언한 환경변수만 태스크에 넘깁니다. 선언에 없던 `VITEST_MAX_WORKERS`는 태스크에 닿지 못했고, Vitest는 기본값인 코어 수 - 1로 돌아가 있었습니다. 에러도 경고도 없어서 측정하지 않았다면 모르고 지나갔을 것입니다. 선언을 추가하니 26s에 load 7.35로 돌아왔습니다.
+
+```jsonc:JSON turbo.json
+// turbo.json
+"test": { "passThroughEnv": ["VITEST_MAX_WORKERS"] }
+```
+
+`env`가 아니라 `passThroughEnv`를 쓴 것은 캐시 때문입니다. `env`에 넣으면 값이 캐시 키에 들어가는데, 병렬도가 테스트 결과를 바꾸지는 않으므로 머신마다 캐시가 갈라질 이유가 없습니다.
+
+여기까지 붙이면 러너가 실제로 어떤 값으로 돌았는지 로그에 남습니다.
+
+```text:Output showLineNumbers=false
+[turbo-run] cpu=3 mem=4.0GB → concurrency=1 × workers=3 (cpu 기준)
+```
+
+### 6-3. 메모리 한도까지 반영하기
+
+작업하다 보니 CPU만으로는 부족한 부분이 더 있었습니다. 테스트는 태스크당 메모리를 많이 쓰지 않지만, 타입 검사는 조금 다릅니다. `tsc`는 워크스페이스당 프로세스 하나가 통째로 뜨는데, 가장 무거운 앱 기준으로 최대 2.73GB의 메모리를 씁니다.
+
+`cpu=3`에 메모리 4GB인 러너가 있다고 가정하면, `check-types`는 태스크당 워커가 1개라 CPU 기준으로는 tsc를 3개까지 동시에 띄우게 됩니다. 그런데 2.73GB짜리 프로세스는 둘만 겹쳐도 한도인 4GB를 넘습니다. CPU로는 3개를 띄울 수 있어도 메모리로는 1개가 한계인 것입니다.
+
+CPU는 초과해도 느려질 뿐이지만 메모리는 초과하면 OOM으로 프로세스가 죽기 때문에, 이쪽이 더 위험합니다. 그래서 태스크당 메모리 사용량을 `--memory-per-task`로 받아 동시 실행 수를 한 번 더 조이도록 했습니다. 타입 검사는 실측 2.73GB에 여유를 얹은 3GB를 넘깁니다. 메모리 한도 역시 cgroup의 `memory.max`에 적혀 있으므로 CPU와 같은 방식으로 읽으면 됩니다.
+
+```js:JavaScript scripts/turbo-run.mjs
+const byMemory = Math.max(1, Math.floor(memory / memoryPerTask))
+if (byMemory < concurrency) {
+  concurrency = byMemory
+  boundBy = 'memory'
+}
+```
+
+4GB 러너에서 타입 검사는 4 ÷ 3 = 1개가 되어, CPU 기준 3개 대신 1개로 돌아갑니다. 같은 러너에서 테스트 잡과 타입 검사 잡의 로그를 나란히 보면, 어느 쪽 한도에 걸렸는지가 그대로 드러납니다.
+
+```text:Output showLineNumbers=false
+test         [turbo-run] cpu=3 mem=4.0GB → concurrency=1 × workers=3 (cpu 기준)
+check-types  [turbo-run] cpu=3 mem=4.0GB → concurrency=1 × workers=1 (memory 기준)
+```
+
+참고로 CI 시간 자체는 유의미하게 달라지지 않았습니다. 같은 구성으로 두 번 돌려도 20% 넘게 흔들리는 환경이라, 단일 실행 비교로 빨라졌다 느려졌다를 판단하기는 어려웠습니다. 이 작업의 목적은 시간 단축보다는 러너 스펙이 바뀌어도 계산이 따라가게 만드는 것이었습니다.
+
+## 7. Conclusion
+
+시작은 로컬에서 테스트를 돌리면 CPU 점유율이 치솟아 다른 작업을 하기 어렵고, 가끔은 테스트까지 깨지는 증상이었습니다. 확인해보니 테스트 코드에는 문제가 없었고, Turborepo와 Vitest가 각자 자기가 머신을 혼자 쓴다고 가정한 채 병렬도를 정하는 것이 원인이었습니다. 각각의 기본값은 합리적이었지만 둘이 곱해진 결과를 보는 곳이 없었고, 지금은 실행 진입점에서 한 번 계산해 양쪽에 내려주는 방식으로 정리했습니다.
+
+작업하면서 인상 깊었던 것은, 문제가 되는 설정들이 하나같이 에러를 내지 않았다는 점입니다. 병렬도가 곱해질 때도, envMode 때문에 환경변수가 사라졌을 때도 뭔가가 죽거나 경고가 뜨는 게 아니라 그냥 조금 느려질 뿐이었습니다. 이런 문제는 코드를 들여다보는 것만으로는 드러나지 않았고, 고친 값이 실제로 적용됐는지 측정했을 때에야 보였습니다. 이번 경험을 통해 도구를 겹쳐 쓸 때는 각자의 기본값을 의심해야 한다는 것과, 설정은 고치는 것만큼 적용을 확인하는 일이 중요하다는 것을 배웠습니다.
