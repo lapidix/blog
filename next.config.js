@@ -105,6 +105,13 @@ module.exports = () => {
           source: '/(.*)',
           headers: securityHeaders,
         },
+        // 참고: 문서 경로는 Accept 에 따라 HTML/마크다운으로 갈라 응답하지만(middleware.ts),
+        // HTML 응답의 Vary 는 여기서 손댈 수 없다. Next 가 페이지 응답의 Vary 를
+        // 'RSC, Next-Router-State-Tree, Next-Router-Prefetch, Accept-Encoding' 으로 마지막에
+        // 덮어쓰기 때문에 headers() 로 지정한 Vary 는 사라진다.
+        // 마크다운 응답 쪽 Vary 는 app/md/[...slug]/route.ts 에서 직접 붙이고 있고,
+        // 변형이 섞이는 문제는 middleware 가 마크다운 요청을 별도 경로로 rewrite 해
+        // 캐시 키 자체를 분리하는 것으로 막는다.
       ]
     },
     async redirects() {

@@ -1,6 +1,6 @@
 import siteMetadata from '@/data/siteMetadata'
-import type { Blog } from 'contentlayer/generated'
-import { allBlogs } from 'contentlayer/generated'
+import type { Blog, Retrospection } from 'contentlayer/generated'
+import { allBlogs, allRetrospections } from 'contentlayer/generated'
 import { MetadataRoute } from 'next'
 
 type SitemapEntry = {
@@ -10,7 +10,7 @@ type SitemapEntry = {
   priority?: number
 }
 
-function calculatePriority(post: Blog): number {
+function calculatePriority(post: Blog | Retrospection): number {
   const postDate = new Date(post.date)
   const now = new Date()
   const daysDiff = Math.floor((now.getTime() - postDate.getTime()) / (1000 * 60 * 60 * 24))
@@ -23,7 +23,7 @@ function calculatePriority(post: Blog): number {
 }
 
 function getChangeFrequency(
-  post: Blog
+  post: Blog | Retrospection
 ): 'always' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'never' {
   const postDate = new Date(post.date)
   const now = new Date()
@@ -37,7 +37,9 @@ function getChangeFrequency(
 export default function sitemap(): MetadataRoute.Sitemap {
   const siteUrl = siteMetadata.siteUrl
 
-  const blogRoutes: SitemapEntry[] = allBlogs
+  // retrospections 도 공개 문서이므로 sitemap 에 포함한다.
+  const blogRoutes: SitemapEntry[] = [...allBlogs, ...allRetrospections]
+    .filter((post) => !post.draft)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .map((post) => ({
       url: `${siteUrl}/${post.path}`,
@@ -58,6 +60,24 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date().toISOString(),
       changeFrequency: 'daily',
       priority: 0.9,
+    },
+    {
+      url: `${siteUrl}/retrospections`,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'daily',
+      priority: 0.8,
+    },
+    {
+      url: `${siteUrl}/contact`,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'monthly',
+      priority: 0.6,
+    },
+    {
+      url: `${siteUrl}/privacy`,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'yearly',
+      priority: 0.3,
     },
     {
       url: `${siteUrl}/tags`,

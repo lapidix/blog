@@ -14,17 +14,17 @@ const LatestPostContainer = ({
   return (
     <div className="flex flex-col items-start justify-start px-2">
       <div className="space-y-2 py-4 px-2 md:space-y-5">
-        {/* sm 이하에서는 일반 h1 */}
-        <h1 className="block md:hidden text-3xl font-extrabold  tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-4xl sm:leading-10">
+        {/* sm 이하에서는 일반 제목 */}
+        <h2 className="block md:hidden text-3xl font-extrabold  tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-4xl sm:leading-10">
           Latest Articles
-        </h1>
+        </h2>
 
         {/* md 이상에서는 RoughNotation 적용 */}
         <div className="hidden md:inline-block ">
           <RoughNotation type="underline" show color="#059669">
-            <h1 className="text-3xl font-extrabold  tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-4xl sm:leading-10 md:text-5xl md:leading-14">
+            <h2 className="text-3xl font-extrabold  tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-4xl sm:leading-10 md:text-5xl md:leading-14">
               Latest Articles
-            </h1>
+            </h2>
           </RoughNotation>
         </div>
       </div>

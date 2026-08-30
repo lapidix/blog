@@ -116,50 +116,60 @@ export default function RootLayout({
           content="BmBwdNWRqcNIxTL4GvqckRWEP1JS-Z7_2xVDhaCdYNE"
         />
 
+        {/*
+          WebSite 와 Person 을 각각 별도 블록으로 내보내면 파서가 어느 Person 노드를 볼지
+          알 수 없어 불완전한 쪽(WebSite.author)을 집는다. @graph 로 합치고 @id 로 참조해
+          Person 노드가 하나만 존재하도록 한다.
+        */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               '@context': 'https://schema.org',
-              '@type': 'WebSite',
-              name: siteMetadata.title,
-              description: siteMetadata.description,
-              url: siteMetadata.siteUrl,
-              author: {
-                '@type': 'Person',
-                name: siteMetadata.author,
-                email: siteMetadata.email,
-                url: siteMetadata.siteUrl,
-              },
-              potentialAction: {
-                '@type': 'SearchAction',
-                target: {
-                  '@type': 'EntryPoint',
-                  urlTemplate: `${siteMetadata.siteUrl}/search?q={search_term_string}`,
+              '@graph': [
+                {
+                  '@type': 'WebSite',
+                  '@id': `${siteMetadata.siteUrl}/#website`,
+                  name: siteMetadata.title,
+                  description: siteMetadata.description,
+                  url: siteMetadata.siteUrl,
+                  inLanguage: siteMetadata.locale,
+                  author: { '@id': `${siteMetadata.siteUrl}/#person` },
+                  publisher: { '@id': `${siteMetadata.siteUrl}/#person` },
+                  potentialAction: {
+                    '@type': 'SearchAction',
+                    target: {
+                      '@type': 'EntryPoint',
+                      urlTemplate: `${siteMetadata.siteUrl}/search?q={search_term_string}`,
+                    },
+                    'query-input': 'required name=search_term_string',
+                  },
                 },
-                'query-input': 'required name=search_term_string',
-              },
-            }),
-          }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              '@context': 'https://schema.org',
-              '@type': 'Person',
-              name: siteMetadata.author,
-              url: siteMetadata.siteUrl,
-              email: siteMetadata.email,
-              jobTitle: 'Web Developer',
-              worksFor: {
-                '@type': 'Organization',
-                name: 'OpusM Inc',
-              },
-              image: `${siteMetadata.siteUrl}/static/images/profile.jpeg`,
-              sameAs: [siteMetadata.github, siteMetadata.linkedin, siteMetadata.twitter].filter(
-                Boolean
-              ),
+                {
+                  '@type': 'Person',
+                  '@id': `${siteMetadata.siteUrl}/#person`,
+                  name: siteMetadata.author,
+                  description: siteMetadata.description,
+                  url: siteMetadata.siteUrl,
+                  email: siteMetadata.email,
+                  jobTitle: 'Web Developer',
+                  worksFor: {
+                    '@type': 'Organization',
+                    name: 'OpusM Inc',
+                  },
+                  image: `${siteMetadata.siteUrl}/static/images/profile.jpeg`,
+                  contactPoint: {
+                    '@type': 'ContactPoint',
+                    contactType: 'general inquiries',
+                    email: siteMetadata.email,
+                    url: `${siteMetadata.siteUrl}/contact`,
+                    availableLanguage: ['Korean', 'English'],
+                  },
+                  sameAs: [siteMetadata.github, siteMetadata.linkedin, siteMetadata.twitter].filter(
+                    Boolean
+                  ),
+                },
+              ],
             }),
           }}
         />
