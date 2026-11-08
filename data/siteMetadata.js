@@ -13,7 +13,7 @@ const siteMetadata = {
   siteLogo: '/static/images/logo.png',
   socialBanner: '/static/images/banner-image.jpeg',
   // mastodon: 'https://mastodon.social/@mastodonuser',
-  email: 'mingi3442@gmail.com',
+  email: 'lapidix@gmail.com',
   linkedin: 'https://www.linkedin.com/in/lapidix',
   github: 'https://github.com/lapidix',
   twitter: 'https://twitter.com/lapidix_dev',
